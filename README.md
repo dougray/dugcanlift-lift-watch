@@ -1,12 +1,29 @@
 # LIFT Watch
 
-Standalone repository for LIFT's companion watch applications.
+Companion watch applications for LIFT — a workout and nutrition tracker
+whose phone apps live in separate repositories (`lift-ios`, `DugCanLiftCalc`)
+and are integrated in the `LIFT` superproject.
+
+Licensed under AGPL-3.0, matching the phone apps. See `LICENSE` and `NOTICE`.
 
 ## Layout
 
-- `apple/` — watchOS application and WatchConnectivity integration.
-- `android/` — Wear OS application and Data Layer integration.
-- `shared/contracts/` — platform-neutral synchronization schemas and fixtures.
-- `docs/` — architecture, reconciliation, and device-test notes.
+- `apple/` — watchOS application.
+  - `LiftKit/` — platform-independent domain model and sync contract, unit
+    tested (`swift test`).
+  - `LiftWatch/` — the SwiftUI watch app + WatchConnectivity transport.
+- `android/` — Wear OS application. **Not yet implemented** — see
+  `android/README.md`.
+- `shared/contracts/` — platform-neutral synchronization schema
+  (`workout-sync.schema.json`), shared by both platforms.
+- `docs/` — architecture and device-test notes.
 
-The phone apps remain in the LIFT integration repository's `android/` and `ios/` submodules. The PWA remains at `site/lift/`.
+The phone apps remain in their own repositories. The PWA remains at
+`site/lift/` in the `LIFT` superproject.
+
+## Status
+
+| Platform | State |
+|---|---|
+| watchOS  | Builds and runs (`apple/LiftWatch`); domain layer fully tested |
+| Wear OS  | Not started — placeholder only |

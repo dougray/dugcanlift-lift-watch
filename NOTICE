@@ -1,0 +1,17 @@
+LIFT Watch
+Copyright (C) 2026 DugCanLift
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU Affero General Public License as published by the
+Free Software Foundation, either version 3 of the License, or (at your
+option) any later version. See LICENSE.
+
+This repository shares domain concepts (workout/exercise/set, revision-based
+synchronization) with, and is a companion to:
+
+- LIFT Android (DugCanLiftCalc) — AGPL-3.0
+- LIFT iOS (lift-ios) — AGPL-3.0
+
+No source from those repositories is vendored here; `apple/LiftKit` is a
+clean-room reimplementation of the shared contract described in
+`docs/ARCHITECTURE.md` and `shared/contracts/workout-sync.schema.json`.

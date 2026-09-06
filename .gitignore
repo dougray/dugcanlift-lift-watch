@@ -40,3 +40,10 @@ vault-password*
 .vault_pass*
 *.gpg
 *.asc
+
+# Xcode / build products
+.build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+.swiftpm/
