@@ -47,3 +47,6 @@ DerivedData/
 *.xcuserstate
 xcuserdata/
 .swiftpm/
+
+# Claude Code worktrees
+.claude/worktrees/
