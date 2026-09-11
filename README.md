@@ -25,5 +25,5 @@ The phone apps remain in their own repositories. The PWA remains at
 
 | Platform | State |
 |---|---|
-| watchOS  | Builds and runs (`apple/LiftWatch`); domain layer fully tested |
+| watchOS  | Builds and runs (`apple/LiftWatch`); domain layer fully tested. Logs food with or without a paired iPhone, and exports the log by QR code |
 | Wear OS  | Not started — placeholder only |
