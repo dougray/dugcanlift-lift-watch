@@ -15,12 +15,18 @@ final class WorkoutSessionModel: ObservableObject {
     @Published private(set) var outbox = SyncOutbox()
     @Published var restTimer = RestTimer()
     @Published var unit: WeightUnit = .pounds
+    @Published var servingUnit: ServingUnit = .grams
     @Published private(set) var isPhoneReachable = false
+    @Published private(set) var recentFoodsSnapshot: RecentFoodsSnapshot?
 
     private let transport: PhoneSyncTransport
+    private let foodSnapshotStore: RecentFoodsSnapshotStore
 
-    init(transport: PhoneSyncTransport = PhoneSyncTransport()) {
+    init(transport: PhoneSyncTransport = PhoneSyncTransport(),
+         foodSnapshotStore: RecentFoodsSnapshotStore = RecentFoodsSnapshotStore()) {
         self.transport = transport
+        self.foodSnapshotStore = foodSnapshotStore
+        recentFoodsSnapshot = foodSnapshotStore.cached
         transport.onEnvelope = { [weak self] envelope in
             Task { @MainActor in self?.receive(envelope) }
         }
@@ -30,7 +36,13 @@ final class WorkoutSessionModel: ObservableObject {
                 if reachable { self?.flushOutbox() }
             }
         }
+        transport.onApplicationContext = { [weak self] context in
+            Task { @MainActor in self?.receiveApplicationContext(context) }
+        }
         transport.activate()
+        if let latest = transport.latestApplicationContext() {
+            receiveApplicationContext(latest)
+        }
     }
 
     // MARK: - Training
@@ -95,31 +107,73 @@ final class WorkoutSessionModel: ObservableObject {
         enqueue(.outdoorActivityFinished, workoutID: id, revision: revision, updatedAt: updatedAt)
     }
 
-    private func enqueue(_ event: SyncEnvelope.Event, workoutID: UUID, revision: Int, updatedAt: Date) {
+    /// Fire-and-forget, exactly like `enqueueOutdoorActivityFinished`: the
+    /// phone computes and persists the actual `FoodEntry`, so there is
+    /// nothing here to reconcile a revision against. `workoutID` is a fresh,
+    /// one-shot UUID (per `FoodLogPayload`'s doc comment) — since it is
+    /// unique per call, `SyncOutbox`'s per-`workoutID` collapsing never
+    /// merges two distinct food logs together.
+    func enqueueFoodLogged(foodRefID: String, amountGrams: Double, meal: FoodLogMeal, loggedAt: Date = .now) {
+        let payload = FoodLogPayload(foodRefID: foodRefID, amountGrams: amountGrams,
+                                      meal: meal.rawValue, loggedAt: loggedAt)
+        enqueue(.foodLogged, workoutID: UUID(), revision: 1, updatedAt: loggedAt, foodLog: payload)
+    }
+
+    private func enqueue(_ event: SyncEnvelope.Event, workoutID: UUID, revision: Int,
+                          updatedAt: Date, foodLog: FoodLogPayload? = nil) {
         let envelope = SyncEnvelope(
             event: event,
             workoutID: workoutID,
             revision: revision,
             updatedAt: updatedAt,
-            origin: .watchOS
+            origin: .watchOS,
+            foodLog: foodLog
         )
         outbox.enqueue(envelope)
         flushOutbox()
     }
 
+    /// Always attempts delivery via `transport.send`, regardless of current
+    /// reachability — `PhoneSyncTransport.send` uses `transferUserInfo`,
+    /// which the OS queues and delivers once the phone comes back in range,
+    /// even across this app being suspended or terminated in the meantime.
+    /// Gating this on `transport.isReachable` (as this used to) would only
+    /// have delayed delivery to the next explicit flush trigger for no
+    /// benefit, since the in-memory `SyncOutbox` itself is what can't survive
+    /// termination — the OS-level queue `transferUserInfo` hands off to can.
     private func flushOutbox() {
-        guard transport.isReachable, !outbox.isEmpty else { return }
+        guard !outbox.isEmpty else { return }
         // Entries stay queued until the phone acknowledges the revision; a send
-        // that silently fails must not look like a delivery.
+        // that silently fails must not look like a delivery. `.foodLogged` is
+        // the one exception: it's a one-shot request with nothing to
+        // reconcile (see `enqueueFoodLogged`'s doc comment), and the phone
+        // never sends a `WORKOUT_SYNC_ACK` for it — so it must be removed
+        // right after sending, or it resends (and re-inserts a duplicate
+        // `FoodEntry`) on every later flush.
         for envelope in outbox.pending {
             transport.send(envelope)
+            if envelope.event == .foodLogged {
+                outbox.remove(workoutID: envelope.workoutID)
+            }
         }
+    }
+
+    private func receiveApplicationContext(_ context: [String: Any]) {
+        guard let snapshot = try? RecentFoodsSnapshot(applicationContext: context) else { return }
+        recentFoodsSnapshot = snapshot
+        foodSnapshotStore.save(snapshot)
     }
 
     private func receive(_ envelope: SyncEnvelope) {
         switch envelope.event {
         case .workoutSyncAck:
             outbox.acknowledge(envelope)
+        case .foodLogged:
+            // The phone never echoes this back — it refreshes the watch via a
+            // separate, non-`SyncEnvelope` channel (`RecentFoodsSnapshot` via
+            // `updateApplicationContext`, see `RecentFoodsSnapshotStore`).
+            // This case exists only so the switch stays exhaustive.
+            break
         case .workoutEdited, .sessionFinished, .outdoorActivityFinished:
             // The envelope is a notification, not the workout. A full snapshot
             // fetch belongs here once the phone exposes one; until then the
