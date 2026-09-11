@@ -32,3 +32,15 @@ Platform transports are implementation details:
 All of the above except the transport files is plain Swift/Kotlin with no
 platform dependency, and is covered by unit tests that don't need a
 simulator, a device, or a paired phone.
+
+## Food quick-log
+
+`FOOD_LOGGED` (a `SyncEnvelope` event, watch -> phone) and
+`RecentFoodsSnapshot` (a standalone type, phone -> watch via
+`WCSession.updateApplicationContext`) are a separate, simpler channel from
+the workout-reconciliation flow above: a food log is a one-shot request with
+no revision to reconcile, and a recent-foods snapshot is a replace-in-place
+cache, not a merged/reconciled record. `RecentFoodsSnapshotStore`
+(`UserDefaults`-backed) is this repo's first persistence of any kind — see
+its doc comment for why `UserDefaults` was judged sufficient here where
+nothing else in this app persists anything.
