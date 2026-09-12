@@ -50,3 +50,6 @@ xcuserdata/
 
 # Claude Code worktrees
 .claude/worktrees/
+
+# Subagent-driven-development scratch (ledgers, briefs, review packages)
+.superpowers/

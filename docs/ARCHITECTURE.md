@@ -44,3 +44,38 @@ cache, not a merged/reconciled record. `RecentFoodsSnapshotStore`
 (`UserDefaults`-backed) is this repo's first persistence of any kind — see
 its doc comment for why `UserDefaults` was judged sufficient here where
 nothing else in this app persists anything.
+
+## Standalone food logging and export
+
+The watch logs food with no paired iPhone, and exports it as a QR code the
+LIFT PWA scans.
+
+- `WatchFoodLibrary` bundles the PWA's own `foods.json` (7,793 USDA SR
+  Legacy records, public domain). Without it a watch that has never been
+  paired has an empty food list, because `RecentFoodsListView` shows only
+  what LIFT iOS pushed — its empty state literally says "Log a food on your
+  phone to see it here."
+- `StandaloneFoodLog` retains every logged entry, capped at 200 entries or
+  just under 60 days. It is **separate from `SyncOutbox`** on purpose:
+  `transferUserInfo` returns normally even when no iPhone was ever paired,
+  and the watch cannot read back from the OS queue, so the outbox retains
+  nothing a standalone user could export.
+- `StandaloneExport` encodes the log as self-contained JSON — food names and
+  per-100 g macros, never identifiers, because the PWA's food data shares no
+  identifiers with LIFT iOS's — then raw-DEFLATEs and base64url-encodes it.
+  Codes carry the `1z` / `1u` envelope `SHARE-FORMAT` uses, and are chunked
+  by **measured byte size** against an 800-byte budget, not by entry count:
+  real USDA names run to a median of 51 characters, so the food dictionary
+  dominates the payload and no fixed entry count is safe.
+- `QRCodeImage` implements QR encoding from scratch (ISO/IEC 18004,
+  Reed-Solomon over GF(256), error-correction level M). **Core Image does
+  not exist on watchOS** — `CoreImage.framework` is absent from the watchOS
+  SDK entirely, though present on iOS — so `CIFilter.qrCodeGenerator()` is
+  not available here and nothing in the system will do this for us.
+- The user clears the log by hand after scanning, behind a confirmation.
+  There is no channel back from the PWA, so the watch cannot know a scan
+  succeeded, and an automatic clear would lose the log whenever one failed.
+
+New source files must be registered in `LiftWatch.xcodeproj/project.pbxproj`.
+This project lists its sources explicitly rather than using a synced folder,
+so a new file is invisible to the build until it is added there.
