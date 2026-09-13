@@ -33,6 +33,17 @@ internal fun amountShown(unit: ServingUnit, amount: Double): Double =
 internal fun gramsFor(unit: ServingUnit, amount: Double): Double =
     if (unit == ServingUnit.GRAMS) round(amount) else round(unit.toGrams(amount) * 10.0) / 10.0
 
+/**
+ * What `set()` computes: the amount to show and the grams to store for a requested value in [unit].
+ * The initial clamp to `unit.fromGrams(MAX_GRAMS)` runs in the display unit's own precision, and
+ * 0.01-oz snapping can round that ceiling up past it (2000 g -> 70.5477 oz, which 0.01-oz snapping
+ * rounds up to 70.55 oz -> 2000.1 g) -- so the grams are re-clamped after snapping, never before.
+ */
+internal fun clampedAmount(unit: ServingUnit, requested: Double): Pair<Double, Double> {
+    val shown = amountShown(unit, requested.coerceIn(0.0, unit.fromGrams(MAX_GRAMS)))
+    return shown to gramsFor(unit, shown).coerceAtMost(MAX_GRAMS)
+}
+
 /** Grams (or ounces) via the rotary input and +/-; kcal for the chosen amount updates live. */
 @Composable fun AmountScreen(draft: Draft, onNext: () -> Unit) {
     val food = draft.food ?: return
@@ -42,8 +53,9 @@ internal fun gramsFor(unit: ServingUnit, amount: Double): Double =
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { focus.requestFocus() }
     fun set(a: Double) {
-        amount = amountShown(unit, a.coerceIn(0.0, unit.fromGrams(MAX_GRAMS)))
-        draft.grams = gramsFor(unit, amount)
+        val (shown, grams) = clampedAmount(unit, a)
+        amount = shown
+        draft.grams = grams
     }
     // Toggling the unit is a change of view, not of portion: it re-quantises the stored grams to the
     // new display's precision, which can only coarsen (0.1 g -> whole g) and never invents precision,

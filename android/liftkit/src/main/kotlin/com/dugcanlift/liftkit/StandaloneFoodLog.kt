@@ -14,22 +14,33 @@ interface LogStorage {
      * discard an earlier quarantine: the oldest evidence is the one closest to the original data.
      */
     fun quarantine(bytes: ByteArray)
+    /**
+     * How many blobs handed to [quarantine] were discarded because a corruption was already
+     * parked there. First-wins keeps only one blob for the user's own recovery; this is the
+     * counter that keeps the ones that didn't win visible instead of erasing them with no trace.
+     */
+    fun quarantineDiscardedCount(): Int
 }
 
 class InMemoryLogStorage : LogStorage {
     private var bytes: ByteArray? = null
     var quarantined: ByteArray? = null; private set
+    private var discarded = 0
     override fun read() = bytes
     override fun write(bytes: ByteArray) { this.bytes = bytes }
-    override fun quarantine(bytes: ByteArray) { if (quarantined == null) quarantined = bytes }
+    override fun quarantine(bytes: ByteArray) { if (quarantined == null) quarantined = bytes else discarded++ }
+    override fun quarantineDiscardedCount(): Int = discarded
 }
 
 @Serializable private data class StoredLog(
     val entries: List<LoggedFood> = emptyList(),
     val skipped: Int = 0,
     /** Entry objects this build could not decode — a field a newer version added, say. Carried
-     *  verbatim through every save, so upgrading, logging and downgrading never destroys them. */
-    val unreadable: List<JsonElement> = emptyList()
+     *  verbatim through every save, so upgrading, logging and downgrading never destroys them.
+     *  Retried on every load (see [StandaloneFoodLog.load]) and bounded at [StandaloneFoodLog.MAX_UNREADABLE_ENTRIES]. */
+    val unreadable: List<JsonElement> = emptyList(),
+    /** Unreadable entries dropped for exceeding the cap above — counted, never silent. */
+    val unreadableDropped: Int = 0
 )
 
 /** What one `load()` recovered: a log, or the raw bytes when nothing at all could be made of them. */
@@ -51,7 +62,13 @@ class StandaloneFoodLog(
     private val clock: () -> Long = { System.currentTimeMillis() / 1000 },
     private val zone: ZoneId = ZoneId.systemDefault()
 ) {
-    companion object { const val MAX_ENTRIES = 200; const val MAX_AGE_DAYS = 60L }
+    companion object {
+        const val MAX_ENTRIES = 200
+        const val MAX_AGE_DAYS = 60L
+        /** Bound on `StoredLog.unreadable`, matching [MAX_ENTRIES]: the carried-forward shadow list
+         *  should never be able to hold more dead weight than the live log itself could ever hold. */
+        const val MAX_UNREADABLE_ENTRIES = 200
+    }
     // ignoreUnknownKeys tolerates keys a newer build added; coerceInputValues tolerates a null
     // where a defaulted field is expected. Neither covers a *missing required* key, which is why
     // entries are decoded one at a time below and the failures are kept rather than dropped.
@@ -72,9 +89,29 @@ class StandaloneFoodLog(
             runCatching { json.decodeFromJsonElement(LoggedFood.serializer(), element) }
                 .fold({ good += it }, { bad += element })
         }
-        val carried = (root["unreadable"] as? JsonArray)?.toList() ?: emptyList()
         val skipped = (root["skipped"] as? JsonPrimitive)?.intOrNull ?: 0
-        return Loaded(StoredLog(good, skipped, carried + bad), null)
+        val previouslyCarried = (root["unreadable"] as? JsonArray)?.toList() ?: emptyList()
+        val previouslyDropped = (root["unreadableDropped"] as? JsonPrimitive)?.intOrNull ?: 0
+
+        // Retry every carried entry on every load: the shape a past build could not parse may be
+        // one this build understands fine (a downgrade-then-upgrade cycle, say). Anything that now
+        // decodes rejoins the live log instead of staying inert for the life of the install.
+        val stillBad = mutableListOf<JsonElement>()
+        previouslyCarried.forEach { element ->
+            runCatching { json.decodeFromJsonElement(LoggedFood.serializer(), element) }
+                .fold({ good += it }, { stillBad += element })
+        }
+
+        // `stillBad` is oldest first (it already survived at least one retry); this pass's own
+        // failures are newest. Bounded so a build that can never parse a given shape doesn't grow
+        // this list forever — the oldest bytes are the ones dropped, and the drop is counted rather
+        // than silent.
+        val carried = stillBad + bad
+        val (unreadable, newlyDropped) =
+            if (carried.size > MAX_UNREADABLE_ENTRIES) carried.takeLast(MAX_UNREADABLE_ENTRIES) to (carried.size - MAX_UNREADABLE_ENTRIES)
+            else carried to 0
+
+        return Loaded(StoredLog(good, skipped, unreadable, previouslyDropped + newlyDropped), null)
     }
 
     /** The log as it stands, with any wholly undecodable blob set aside first — the caller is about
@@ -92,6 +129,12 @@ class StandaloneFoodLog(
     /** Entries still in storage but outside the 60-day window: kept, but not shown and not exported.
      *  Lets an empty Export screen say "these expired" rather than "you never logged anything". */
     val expiredCount: Int get() = (load().log?.entries ?: emptyList()).let { it.size - live(it).size }
+    /** Entries this build still cannot decode, after retrying every one of them on this load. */
+    val unreadableCount: Int get() = load().log?.unreadable?.size ?: 0
+    /** Unreadable entries dropped for exceeding [MAX_UNREADABLE_ENTRIES] — a count, never silence. */
+    val unreadableDroppedCount: Int get() = load().log?.unreadableDropped ?: 0
+    /** Corrupt blobs handed to [LogStorage.quarantine] that lost first-wins and were discarded. */
+    val quarantineDiscardedCount: Int get() = storage.quarantineDiscardedCount()
 
     fun append(entry: LoggedFood) {
         val cur = loadForWrite()
