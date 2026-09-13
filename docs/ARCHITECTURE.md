@@ -26,12 +26,15 @@ Platform transports are implementation details:
 
 - watchOS uses WatchConnectivity to the iPhone application
   (`apple/LiftWatch/PhoneSyncTransport.swift`).
-- Wear OS uses the Wearable Data Layer to the Android application (not yet
-  implemented — see `android/README.md`).
+- Wear OS has **no phone transport** in v1: LIFT Android carries no Play
+  Services by policy, and the Data Layer needs it on both ends. The watch
+  exports through the same QR path as watchOS
+  (`android/liftkit/StandaloneExport.kt`).
 
 All of the above except the transport files is plain Swift/Kotlin with no
 platform dependency, and is covered by unit tests that don't need a
-simulator, a device, or a paired phone.
+simulator, a device, or a paired phone. `android/liftkit` is likewise plain
+Kotlin with no platform dependency and no simulator required to test it.
 
 ## Food quick-log
 
