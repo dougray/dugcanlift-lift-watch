@@ -30,6 +30,17 @@ class PrefsLogStorageTest {
         assertEquals("the undecodable original", String(parked))
     }
 
+    /** Round 4: a second wholly-undecodable blob used to lose the "first wins" race with no trace. */
+    @Test fun `a second corruption is counted in its own key instead of vanishing`() {
+        val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val storage = PrefsLogStorage(ctx)
+        storage.quarantine("the undecodable original".toByteArray())
+        storage.quarantine("a later failure".toByteArray())
+        assertEquals("the second corruption must be counted, not silently lost", 1, storage.quarantineDiscardedCount())
+        storage.quarantine("a third failure".toByteArray())
+        assertEquals(2, PrefsLogStorage(ctx).quarantineDiscardedCount())
+    }
+
     @Test fun `an append over an undecodable blob parks it instead of destroying it`() {
         val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
         PrefsLogStorage(ctx).write("<<not json>>".toByteArray())

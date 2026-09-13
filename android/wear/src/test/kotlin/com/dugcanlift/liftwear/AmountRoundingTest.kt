@@ -31,6 +31,15 @@ class AmountRoundingTest {
         assertEquals(100.0, grams, 0.0)
     }
 
+    @Test fun `driving the ounces path to its ceiling never stores more than the 2000 g cap`() {
+        // 2000 g is 70.5477... oz; 0.01-oz snapping used to round the clamped ceiling up to 70.55 oz,
+        // which converts to 2000.1 g -- overshooting the documented cap by 0.1 g.
+        val (shown, grams) = clampedAmount(ServingUnit.OUNCES, 1_000.0)
+        assertEquals(70.55, shown, 0.0)
+        assertTrue("stored grams must never exceed the 2000 g cap", grams <= 2000.0)
+        assertEquals(2000.0, grams, 0.0)
+    }
+
     @Test fun `ounce entries no longer double the number of codes to scan`() {
         val food = WatchFood("Chicken, broilers or fryers, breast, meat only, cooked, roasted", 165.0, 31.02, 3.57, 0.0, 0.0)
         val rounded = (0 until 200).map {
