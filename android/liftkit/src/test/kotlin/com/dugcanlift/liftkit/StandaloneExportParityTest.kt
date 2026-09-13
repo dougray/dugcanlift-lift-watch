@@ -27,6 +27,14 @@ class StandaloneExportParityTest {
             w.jsonArray.drop(1).zip(m.jsonArray.drop(1)).forEach { (a, b) -> assertEquals(a.jsonPrimitive.double, b.jsonPrimitive.double, 1e-9) }
         }
     }
+    @Test fun `print the Kotlin single code for the site fixture`() {
+        // Not an assertion: copy this output to dugcanlift-site/lift/fixtures/wear-export-single.txt.
+        val chicken = WatchFood("Chicken, broilers or fryers, breast, meat only, cooked, roasted", 165.0, 31.02, 3.57, 0.0, 0.0)
+        val oats = WatchFood("Oats, whole grain, rolled, old fashioned", 379.0, 13.15, 6.52, 67.7, 10.1)
+        println("WEAR_FIXTURE " + StandaloneExport.codes(listOf(
+            LoggedFood(chicken, 50.0, FoodLogMeal.BREAKFAST, 1757486400), LoggedFood(oats, 87.0, FoodLogMeal.LUNCH, 1757491800),
+            LoggedFood(chicken, 124.0, FoodLogMeal.DINNER, 1757497200)), 1757500800).single())
+    }
     @Test fun `the Kotlin decoder reads the watchOS two-code sequence completely`() {
         val codes = fixture("watch-export-sequence.txt")
         val payloads = codes.map(TestDecode::payload)
