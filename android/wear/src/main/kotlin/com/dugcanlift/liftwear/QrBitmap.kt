@@ -8,7 +8,10 @@ import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 import kotlin.math.floor
 import kotlin.math.sqrt
 
-/** ZXing core: pure Java, no Play Services. ECC M and a 2-module quiet zone, as watchOS renders. */
+/** ZXing core: pure Java, no Play Services. ECC M, matching watchOS. The 2-module quiet zone does
+ *  NOT match watchOS's 4 -- Wear draws the code centred on a full-bleed white background (see
+ *  ExportScreen), which supplies far more effective margin on screen than either encoded value, so
+ *  the smaller encoded quiet zone only buys larger, more scannable modules and costs nothing. */
 object QrBitmap {
     /**
      * Renders `text` filling a `sizePx` square.
