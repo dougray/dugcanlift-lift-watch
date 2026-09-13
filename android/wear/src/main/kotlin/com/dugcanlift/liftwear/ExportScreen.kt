@@ -40,16 +40,13 @@ import kotlinx.coroutines.withContext
                 val bitmap by produceState<Bitmap?>(null, page, codes, sizePx) {
                     value = withContext(Dispatchers.Default) { QrBitmap.render(codes[page], sizePx) }
                 }
-                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                    val current = bitmap
-                    if (current != null) {
-                        Image(current.asImageBitmap(), contentDescription = "Code ${page + 1} of ${codes.size}", modifier = Modifier.size(sizeDp))
-                    } else {
-                        Spacer(Modifier.size(sizeDp))
-                    }
-                    Spacer(Modifier.height(6.dp))
-                    Text("${page + 1} / ${codes.size}", color = Color.Black)
+                val current = bitmap
+                if (current != null) {
+                    Image(current.asImageBitmap(), contentDescription = "Code ${page + 1} of ${codes.size}", modifier = Modifier.size(sizeDp))
+                } else {
+                    Spacer(Modifier.size(sizeDp))
                 }
+                Text("${page + 1} / ${codes.size}", color = Color.Black, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 6.dp))
             }
         } else {
             Column(Modifier.fillMaxSize().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
