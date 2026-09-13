@@ -11,15 +11,37 @@ import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.foundation.pager.HorizontalPager
 import androidx.wear.compose.foundation.pager.rememberPagerState
 import androidx.wear.compose.material.*
+import androidx.wear.compose.material.dialog.Dialog
 import com.dugcanlift.liftkit.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.math.abs
+
+/** Matches ExportFoodsView.swift's confirmationDialog verbatim: title, message and button labels. */
+internal const val CLEAR_LOG_TITLE = "Clear the log?"
+internal const val CLEAR_LOG_MESSAGE = "Only do this once the codes have been scanned. This cannot be undone."
+
+/** Home's distinct "Nothing logged yet" is for a log with zero entries ever; this is Export's own
+ *  empty state, which can also mean "entries exist but all aged out" -- see [expiredCount] below. */
+internal fun exportEmptyMessage(expiredCount: Int): String =
+    if (expiredCount > 0) "Nothing left to export — $expiredCount logged over 60 days ago." else "Nothing logged yet."
+
+/** watchOS suppresses the "n / total" caption entirely for a single-code export (ExportFoodsView.swift
+ *  `if codes.count > 1`), both because "1 / 1" tells the user nothing and because the caption's band
+ *  eats module area on the one screen where module size decides whether a phone can focus. */
+internal fun exportPageCaption(page: Int, total: Int): String? = if (total > 1) "${page + 1} / $total" else null
+
+/** watchOS: "Scan all N codes, then:" / "Scanned it?" (ExportFoodsView.swift:73-75). */
+internal fun exportConfirmPrompt(total: Int): String = if (total > 1) "Scanned all $total?" else "Scanned it?"
+
+/** No caption is drawn for a single code, so reserve no room for it -- the code gets the whole square. */
+internal fun captionReserveFor(total: Int, captionReservePx: Int): Int = if (total > 1) captionReservePx else 0
 
 /** Codes are encoded ONCE when the screen opens. Done clears only what was shown; Back leaves the log intact. */
 @Composable fun ExportScreen(log: StandaloneFoodLog, onDone: () -> Unit) {
@@ -30,7 +52,7 @@ import kotlin.math.abs
         // exportable, and telling a user who logged for weeks that they never logged anything is a
         // worse lie than telling them their log expired.
         val expired = remember { log.expiredCount }
-        val message = if (expired > 0) "Nothing left to export — $expired logged over 60 days ago." else "Nothing to export."
+        val message = exportEmptyMessage(expired)
         Box(Modifier.fillMaxSize().padding(horizontal = 16.dp), contentAlignment = Alignment.Center) { Text(message, color = DclColors.Muted) }
         return
     }
@@ -41,7 +63,9 @@ import kotlin.math.abs
     // the user's font scale) plus its 6 dp offset from the edge and a little clearance. Measured
     // rather than assumed because on a square display the code would otherwise be drawn under it.
     val captionReservePx = with(density) { 20.sp.roundToPx() + 10.dp.roundToPx() }
-    val sizePx = remember(screenWidthPx, isRound, captionReservePx) { QrBitmap.qrSizePx(screenWidthPx, isRound, captionReservePx) }
+    val sizePx = remember(screenWidthPx, isRound, captionReservePx, codes.size) {
+        QrBitmap.qrSizePx(screenWidthPx, isRound, captionReserveFor(codes.size, captionReservePx))
+    }
     val sizeDp = with(density) { sizePx.toDp() }
     // Rendered pages, kept across a swipe away and back: produceState restarting from null blanked
     // the code to white while a phone camera was aimed at it. Bounded to the current page and its
@@ -73,15 +97,32 @@ import kotlin.math.abs
                 } else {
                     Spacer(Modifier.size(sizeDp))
                 }
-                Text("${page + 1} / ${codes.size}", color = Color.Black, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 6.dp))
+                exportPageCaption(page, codes.size)?.let {
+                    Text(it, color = Color.Black, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 6.dp))
+                }
             }
         } else {
+            // Matches watchOS: the destructive tap only arms a confirmation, it never clears directly.
+            // Overshooting the pager onto this page and hitting the primary chip used to wipe the only
+            // copy of the log with no undo (ExportFoodsView.swift:78 gates the same way).
+            var confirmingClear by remember { mutableStateOf(false) }
             Column(Modifier.fillMaxSize().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                Text("Scanned all ${codes.size}?", color = DclColors.Text)
+                Text(exportConfirmPrompt(codes.size), color = DclColors.Text)
                 Spacer(Modifier.height(8.dp))
-                Chip(onClick = { log.remove(shown); onDone() }, label = { Text("Done — clear these") }, colors = ChipDefaults.primaryChipColors())
+                Chip(onClick = { confirmingClear = true }, label = { Text("Done — clear these") }, colors = ChipDefaults.primaryChipColors())
                 Spacer(Modifier.height(4.dp))
                 Chip(onClick = onDone, label = { Text("Keep them") }, colors = ChipDefaults.secondaryChipColors())
+            }
+            Dialog(showDialog = confirmingClear, onDismissRequest = { confirmingClear = false }) {
+                Column(Modifier.fillMaxSize().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                    Text(CLEAR_LOG_TITLE, style = MaterialTheme.typography.title3, textAlign = TextAlign.Center, color = DclColors.Text)
+                    Spacer(Modifier.height(8.dp))
+                    Text(CLEAR_LOG_MESSAGE, textAlign = TextAlign.Center, color = DclColors.Muted)
+                    Spacer(Modifier.height(8.dp))
+                    Chip(onClick = { confirmingClear = false; log.remove(shown); onDone() }, label = { Text("Clear") }, colors = ChipDefaults.primaryChipColors())
+                    Spacer(Modifier.height(4.dp))
+                    Chip(onClick = { confirmingClear = false }, label = { Text("Keep") }, colors = ChipDefaults.secondaryChipColors())
+                }
             }
         }
     }
