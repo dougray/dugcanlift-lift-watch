@@ -18,10 +18,16 @@ import com.dugcanlift.liftkit.StandaloneFoodLog
 @Composable fun HomeScreen(log: StandaloneFoodLog, onLog: () -> Unit, onExport: () -> Unit) {
     var count by remember { mutableStateOf(log.entries.size) }
     var expired by remember { mutableStateOf(log.expiredCount) }
+    // A discarded quarantine is a second corruption that "first wins" refused to keep — surfaced
+    // here, next to `expired`, so a user or a future support path can tell something was dropped
+    // rather than the loss being invisible.
+    var corrupted by remember { mutableStateOf(log.quarantineDiscardedCount) }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) { count = log.entries.size; expired = log.expiredCount }
+            if (event == Lifecycle.Event.ON_RESUME) {
+                count = log.entries.size; expired = log.expiredCount; corrupted = log.quarantineDiscardedCount
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
@@ -40,6 +46,7 @@ import com.dugcanlift.liftkit.StandaloneFoodLog
                             else -> "Nothing logged yet"
                         }) },
                         colors = ChipDefaults.secondaryChipColors(), modifier = Modifier.fillMaxWidth()) }
+            if (corrupted > 0) item { Text("$corrupted corrupted log${if (corrupted == 1) "" else "s"} could not be recovered", color = DclColors.Muted) }
         }
     }
 }
