@@ -53,3 +53,10 @@ xcuserdata/
 
 # Subagent-driven-development scratch (ledgers, briefs, review packages)
 .superpowers/
+
+# Gradle / Android
+android/.gradle/
+android/build/
+android/*/build/
+android/local.properties
+android/.kotlin/
