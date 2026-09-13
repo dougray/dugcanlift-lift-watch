@@ -40,6 +40,24 @@ class AmountRoundingTest {
         assertEquals(2000.0, grams, 0.0)
     }
 
+    // M6: watchOS's library flow floors at 5 g (FoodSearchView.swift's `Stepper(..., in: 5...1000, ...)`).
+    // Wear's floor used to be 0, so dialling down (or a stray "-" tap) could log a 0 g / 0 kcal entry
+    // that still spent a slot in the 200-entry cap and a row in an exported QR code.
+    @Test fun `a zero-gram request is floored at 5 g, not logged as 0`() {
+        val (shown, grams) = clampedAmount(ServingUnit.GRAMS, 0.0)
+        assertEquals(5.0, shown, 0.0)
+        assertEquals(5.0, grams, 0.0)
+    }
+
+    @Test fun `driving the ounces path down never stores less than the 5 g floor`() {
+        // The 5 g floor is 0.1763 oz; 0.01-oz snapping rounds that up to 0.18 oz, which converts to
+        // 5.1 g -- never below the 5 g floor, only ever at or above it.
+        val (shown, grams) = clampedAmount(ServingUnit.OUNCES, -1.0)
+        assertEquals(0.18, shown, 0.0)
+        assertTrue("stored grams must never be below the 5 g floor", grams >= 5.0)
+        assertEquals(5.1, grams, 0.0)
+    }
+
     @Test fun `ounce entries no longer double the number of codes to scan`() {
         val food = WatchFood("Chicken, broilers or fryers, breast, meat only, cooked, roasted", 165.0, 31.02, 3.57, 0.0, 0.0)
         val rounded = (0 until 200).map {

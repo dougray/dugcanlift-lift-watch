@@ -19,6 +19,12 @@ import kotlin.math.roundToInt
  *  (70 oz would truncate to 1984.68 g if clamped as its own rounded limit). */
 private const val MAX_GRAMS = 2000.0
 
+/** Matches watchOS's library-flow floor (FoodSearchView.swift's `Stepper(value: $grams, in: 5...1000...)`).
+ *  Below this a 0 g / 0 kcal entry was loggable -- meaningless, but it still spent a slot in the 200-entry
+ *  cap and a row in an exported QR code. Derived the same way as [MAX_GRAMS]'s ounce side: the floor is
+ *  enforced in grams, and the display unit's clamp is converted from it rather than given its own literal. */
+private const val MIN_GRAMS = 5.0
+
 /**
  * The precision the screen shows, which is also the precision that gets logged. Grams display as
  * whole numbers, so grams are stored whole; ounces display to 0.01 oz, and 0.01 oz is 0.28 g, so
@@ -35,13 +41,15 @@ internal fun gramsFor(unit: ServingUnit, amount: Double): Double =
 
 /**
  * What `set()` computes: the amount to show and the grams to store for a requested value in [unit].
- * The initial clamp to `unit.fromGrams(MAX_GRAMS)` runs in the display unit's own precision, and
- * 0.01-oz snapping can round that ceiling up past it (2000 g -> 70.5477 oz, which 0.01-oz snapping
- * rounds up to 70.55 oz -> 2000.1 g) -- so the grams are re-clamped after snapping, never before.
+ * The initial clamp to `unit.fromGrams(MAX_GRAMS)`/`unit.fromGrams(MIN_GRAMS)` runs in the display
+ * unit's own precision, and 0.01-oz snapping can round a clamped bound past it in either direction
+ * (2000 g -> 70.5477 oz, which 0.01-oz snapping rounds up to 70.55 oz -> 2000.1 g; the 5 g floor is
+ * 0.1763 oz, which snaps to 0.18 oz -> 5.1 g) -- so the grams are re-clamped after snapping, never
+ * before, and on both bounds.
  */
 internal fun clampedAmount(unit: ServingUnit, requested: Double): Pair<Double, Double> {
-    val shown = amountShown(unit, requested.coerceIn(0.0, unit.fromGrams(MAX_GRAMS)))
-    return shown to gramsFor(unit, shown).coerceAtMost(MAX_GRAMS)
+    val shown = amountShown(unit, requested.coerceIn(unit.fromGrams(MIN_GRAMS), unit.fromGrams(MAX_GRAMS)))
+    return shown to gramsFor(unit, shown).coerceIn(MIN_GRAMS, MAX_GRAMS)
 }
 
 /** Grams (or ounces) via the rotary input and +/-; kcal for the chosen amount updates live. */
