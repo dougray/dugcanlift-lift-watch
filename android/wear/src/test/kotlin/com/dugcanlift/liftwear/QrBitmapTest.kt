@@ -16,9 +16,16 @@ import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
 class QrBitmapTest {
+    // M4: the sizes qrSizePx actually returns. 400 and 500 px are not among them — a 454 px round
+    // display gives 321 and a 320 px round display gives 226, and 226 is the worst point in the
+    // whole device/length matrix. A square 454 px display, inset for the caption, gives SQUARE_454.
+    private val round454 = QrBitmap.qrSizePx(454, isRound = true, captionReservePx = CAPTION_RESERVE_454)
+    private val round320 = QrBitmap.qrSizePx(320, isRound = true, captionReservePx = CAPTION_RESERVE_320)
+    private val square454 = QrBitmap.qrSizePx(454, isRound = false, captionReservePx = CAPTION_RESERVE_454)
+
     @Test fun `a rendered code decodes back to its text`() {
         val text = "1zJY7LbsIwFAV_xZr1BdlOQM1dAn8ReRGCGywZpw1PCeXfq4bt0YzmvHmg"
-        assertRoundTrips(text, sizePx = 400)
+        assertRoundTrips(text, sizePx = round454)
     }
 
     // T8-I2: the sample above is 58 characters. Real export codes run 278-800 characters (the
@@ -29,13 +36,14 @@ class QrBitmapTest {
     @Test fun `a real single-code export round-trips`() {
         val text = readFixtureLine("watch-export-single.txt")
         assertTrue("fixture should be a real single export code, was ${text.length} chars", text.length in 200..StandaloneExport.MAX_CODE_BYTES)
-        assertRoundTrips(text, sizePx = 500)
+        assertRoundTrips(text, sizePx = round454)
     }
 
     @Test fun `a real multi-code export sequence page round-trips`() {
         val text = readFixtureLine("watch-export-sequence.txt", line = 0)
         assertTrue("fixture should be near the cap, was ${text.length} chars", text.length in 700..StandaloneExport.MAX_CODE_BYTES)
-        assertRoundTrips(text, sizePx = 500)
+        assertRoundTrips(text, sizePx = round454)
+        assertRoundTrips(text, sizePx = round320)
     }
 
     @Test fun `a generated code at the MAX_CODE_BYTES cap round-trips`() {
@@ -44,7 +52,25 @@ class QrBitmapTest {
         assertEquals("expected the fixture builder to still fit one chunk", 1, codes.size)
         val text = codes[0]
         assertTrue("expected a near-cap code, was ${text.length} chars", text.length in 700..StandaloneExport.MAX_CODE_BYTES)
-        assertRoundTrips(text, sizePx = 500)
+        assertRoundTrips(text, sizePx = round454)
+        assertRoundTrips(text, sizePx = round320)
+        assertRoundTrips(text, sizePx = square454)
+    }
+
+    /** I2: ZXing picks an integer px-per-module, so a cap-length code drew 218 px inside the 321 px
+     *  bitmap it was asked for. Scaling the matrix up ourselves must fill it, and every module must
+     *  stay a pure black or white square — a grey pixel anywhere means something interpolated. */
+    @Test fun `a cap-length code fills the bitmap it was asked for and stays two-tone`() {
+        val text = StandaloneExport.codes(entriesFillingOneChunkNearCap()).single()
+        val bmp = QrBitmap.render(text, round454)
+        assertEquals(round454, bmp.width)
+        assertEquals(round454, bmp.height)
+        val px = IntArray(bmp.width * bmp.height); bmp.getPixels(px, 0, bmp.width, 0, 0, bmp.width, bmp.height)
+        assertTrue("every pixel must be pure black or pure white", px.all { it == android.graphics.Color.BLACK || it == android.graphics.Color.WHITE })
+        // Dark extent: the code proper is modules/(modules + 2 * MARGIN) of the bitmap. ZXing's own
+        // renderer gave 218 of 321 px (68%); filling the square must do meaningfully better.
+        val darkColumns = (0 until bmp.width).count { x -> (0 until bmp.height).any { y -> px[y * bmp.width + x] == android.graphics.Color.BLACK } }
+        assertTrue("code spans only $darkColumns of ${bmp.width} px", darkColumns > bmp.width * 9 / 10)
     }
 
     private fun assertRoundTrips(text: String, sizePx: Int) {
@@ -70,6 +96,13 @@ class QrBitmapTest {
             i++
         }
         error("could not build a near-cap chunk within 500 entries")
+    }
+
+    private companion object {
+        /** What ExportScreen reserves for the "n / total" caption: 20 sp of line height plus 10 dp,
+         *  at the density each display runs (454 px round = 2.0, 320 px round = 1.5). */
+        const val CAPTION_RESERVE_454 = 60
+        const val CAPTION_RESERVE_320 = 45
     }
 
     private fun readFixtureLine(name: String, line: Int = 0): String {

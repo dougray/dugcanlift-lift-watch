@@ -17,9 +17,12 @@ import com.dugcanlift.liftkit.StandaloneFoodLog
  */
 @Composable fun HomeScreen(log: StandaloneFoodLog, onLog: () -> Unit, onExport: () -> Unit) {
     var count by remember { mutableStateOf(log.entries.size) }
+    var expired by remember { mutableStateOf(log.expiredCount) }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_RESUME) count = log.entries.size }
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) { count = log.entries.size; expired = log.expiredCount }
+        }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
@@ -27,8 +30,15 @@ import com.dugcanlift.liftkit.StandaloneFoodLog
         ScalingLazyColumn(modifier = Modifier.fillMaxSize()) {
             item { ListHeader { Text("LIFT") } }
             item { Chip(onClick = onLog, label = { Text("Log food") }, colors = ChipDefaults.primaryChipColors(), modifier = Modifier.fillMaxWidth()) }
+            // "Nothing logged yet" now means exactly that: entries that aged past the 60-day window
+            // are still in storage, and saying a user who logged for weeks never logged anything is
+            // the empty state the spec asks to distinguish from Export's.
             item { Chip(onClick = onExport, label = { Text("Export logged foods") },
-                        secondaryLabel = { Text(if (count == 0) "Nothing logged yet" else "$count to export") },
+                        secondaryLabel = { Text(when {
+                            count > 0 -> "$count to export"
+                            expired > 0 -> "$expired expired, none to export"
+                            else -> "Nothing logged yet"
+                        }) },
                         colors = ChipDefaults.secondaryChipColors(), modifier = Modifier.fillMaxWidth()) }
         }
     }
