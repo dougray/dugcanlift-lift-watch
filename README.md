@@ -29,4 +29,4 @@ The phone apps remain in their own repositories. The PWA remains at
 | Platform | State |
 |---|---|
 | watchOS  | Builds and runs (`apple/LiftWatch`); domain layer fully tested. Logs food with or without a paired iPhone, and exports the log by QR code |
-| Wear OS  | Builds and runs (`android/wear`); domain layer fully tested. Logs food with no phone present and exports the log by QR code. No Play Services, and no network permission at all — there is deliberately no phone transport, because the Wearable Data Layer requires Play Services on both ends and LIFT Android carries none |
+| Wear OS  | Released as 1.0 (`android/wear`); domain layer fully tested. Downloadable from [dugcanlift.com](https://www.dugcanlift.com/lift/wear-install/) and sideloaded over adb — Wear OS has no route to a watch except the Play Store, and store submission is deferred. Logs food with no phone present and exports the log by QR code. No Play Services, and no network permission at all — there is deliberately no phone transport, because the Wearable Data Layer requires Play Services on both ends and LIFT Android carries none |
