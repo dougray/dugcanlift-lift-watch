@@ -40,33 +40,58 @@ step needs the hardware.
 
 ### When the watch will not take an install
 
-The build succeeding and the install failing are separate problems. These two
-messages both mean the watch, not the code:
+**Check the paired iPhone first.** The watch has no independent link to this
+Mac — watch deployment rides the phone's connection. When the phone drops, the
+watch becomes unreachable with it, and every error you get back describes the
+watch instead:
+
+```sh
+xcrun devicectl list devices
+```
+
+You want the **iPhone** reading `connected`. If it reads `unavailable`, nothing
+you do to the watch will help. `xctrace list devices` is the clearer view — it
+lists both devices under `Devices Offline` when the link is down, which
+`devicectl` does not make obvious.
+
+A *reachable* watch also reads `connected`. `available (paired)` means paired to
+the phone but not currently reachable from here, and is exactly the state in
+which installs fail.
+
+These two messages both mean the link, not the code and not the watch:
 
 - `devicectl`: *The device rejected the connection request.*
+  (`RemotePairingError 1007`)
 - `xcodebuild`: *may need to be unlocked to recover from previously reported
   preparation errors.*
 
-In order of likelihood:
+Neither names the phone, which is what makes this worth writing down: the whole
+diagnosis is one device to the left of where the errors point.
 
-1. **Developer Mode is off on the watch.** Settings → Privacy & Security →
-   Developer Mode, then restart it when asked. A watch that has only ever been
-   paired to a phone will not have this on, and nothing on the Mac can turn it
-   on. This is the usual answer.
-2. **The watch is locked, off the wrist, or not on this Mac's Wi-Fi.** Watch
-   installs go over the network; there is no cable.
-3. **It failed preparation earlier and will not retry by itself.** Xcode →
-   Window → Devices and Simulators, select the watch, let it finish. That step
-   has no command-line equivalent, and it is where the real error appears.
+In order:
 
-Note that `devicectl list devices` reporting `available (paired)` rather than
-`connected` is normal for a watch and is *not* itself the problem — a watch
-that installs fine can still read `available (paired)`.
+1. **Get the iPhone back to `connected`.** Plug it into this Mac, unlock it,
+   accept "Trust This Computer" if asked. Re-check with the command above.
+2. If it stays `unavailable` after a replug, open **Xcode → Window → Devices and
+   Simulators**. That is where a device gets re-paired and, unlike `devicectl`,
+   it shows the real error. If the phone does not appear there either, the
+   CoreDevice daemon is stale and a restart of the Mac clears it.
+3. Only then look at the watch: unlocked, on the wrist, on this Mac's Wi-Fi.
+4. **Developer Mode** must be on (Settings → Privacy & Security → Developer
+   Mode, restart when asked) — but it is rarely the cause, and a watch that has
+   it off will say so plainly rather than rejecting the connection.
 
-A sandboxed/CI shell without access to Apple's local device-discovery service
-(`devicectl`/`xctrace` showing your paired iPhone as "unavailable" despite a
-USB connection) cannot deploy to physical hardware — run the above from a
-normal Terminal, or use Xcode's Run button directly.
+`system_profiler SPUSBDataType` is not a useful check here: it can return
+completely empty output, so "no iPhone on USB" from it proves nothing.
+
+Launching remotely can be refused even when the install succeeded:
+
+```
+Navigation away from clock is not allowed due to one or more active system states
+```
+
+That is watchOS declining to foreground an app while the watch is on a charger
+or wrist-down. The app is installed; open it from the watch's app list.
 
 ## Wear OS
 
