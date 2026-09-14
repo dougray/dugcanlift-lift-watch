@@ -55,6 +55,106 @@
                     primaryProviderType="RANGED_VALUE" />
             </ComplicationSlot>
 
+        <ComplicationSlot slotId="2" x="60" y="268" width="100" height="40"
+                          supportedTypes="RANGED_VALUE" displayName="Macro">
+            <Bounding x="0" y="0" width="100" height="40" />
+
+            <Complication type="RANGED_VALUE">
+                <PartDraw x="0" y="0" width="100" height="5">
+                    <Rectangle x="0" y="0" width="100" height="5">
+                        <Fill color="#ff2c2c2a" />
+                    </Rectangle>
+                </PartDraw>
+
+                <PartDraw x="0" y="0" width="100" height="5">
+                    <Rectangle x="0" y="0" width="100" height="5">
+                        <Transform target="width"
+                                   value="100 * [COMPLICATION.RANGED_VALUE_VALUE] / [COMPLICATION.RANGED_VALUE_MAX]" />
+                        <Fill color="#ff85b7eb" />
+                    </Rectangle>
+                </PartDraw>
+
+                <PartText x="0" y="8" width="100" height="24">
+                    <Text align="START">
+                        <Font family="SYNC_TO_DEVICE" size="15" color="#ff888780">
+                            <Template><![CDATA[%s]]><Parameter expression="[COMPLICATION.TEXT]" /></Template>
+                        </Font>
+                    </Text>
+                </PartText>
+            </Complication>
+
+            <DefaultProviderPolicy
+                primaryProvider="com.dugcanlift.liftwear/com.dugcanlift.liftwear.ProteinComplicationService"
+                primaryProviderType="RANGED_VALUE" />
+        </ComplicationSlot>
+
+        <ComplicationSlot slotId="3" x="175" y="268" width="100" height="40"
+                          supportedTypes="RANGED_VALUE" displayName="Macro">
+            <Bounding x="0" y="0" width="100" height="40" />
+
+            <Complication type="RANGED_VALUE">
+                <PartDraw x="0" y="0" width="100" height="5">
+                    <Rectangle x="0" y="0" width="100" height="5">
+                        <Fill color="#ff2c2c2a" />
+                    </Rectangle>
+                </PartDraw>
+
+                <PartDraw x="0" y="0" width="100" height="5">
+                    <Rectangle x="0" y="0" width="100" height="5">
+                        <Transform target="width"
+                                   value="100 * [COMPLICATION.RANGED_VALUE_VALUE] / [COMPLICATION.RANGED_VALUE_MAX]" />
+                        <Fill color="#ffef9f27" />
+                    </Rectangle>
+                </PartDraw>
+
+                <PartText x="0" y="8" width="100" height="24">
+                    <Text align="START">
+                        <Font family="SYNC_TO_DEVICE" size="15" color="#ff888780">
+                            <Template><![CDATA[%s]]><Parameter expression="[COMPLICATION.TEXT]" /></Template>
+                        </Font>
+                    </Text>
+                </PartText>
+            </Complication>
+
+            <DefaultProviderPolicy
+                primaryProvider="com.dugcanlift.liftwear/com.dugcanlift.liftwear.CarbsComplicationService"
+                primaryProviderType="RANGED_VALUE" />
+        </ComplicationSlot>
+
+        <ComplicationSlot slotId="4" x="290" y="268" width="100" height="40"
+                          supportedTypes="RANGED_VALUE" displayName="Macro">
+            <Bounding x="0" y="0" width="100" height="40" />
+
+            <Complication type="RANGED_VALUE">
+                <PartDraw x="0" y="0" width="100" height="5">
+                    <Rectangle x="0" y="0" width="100" height="5">
+                        <Fill color="#ff2c2c2a" />
+                    </Rectangle>
+                </PartDraw>
+
+                <PartDraw x="0" y="0" width="100" height="5">
+                    <Rectangle x="0" y="0" width="100" height="5">
+                        <Transform target="width"
+                                   value="100 * [COMPLICATION.RANGED_VALUE_VALUE] / [COMPLICATION.RANGED_VALUE_MAX]" />
+                        <Fill color="#ffed93b1" />
+                    </Rectangle>
+                </PartDraw>
+
+                <PartText x="0" y="8" width="100" height="24">
+                    <Text align="START">
+                        <Font family="SYNC_TO_DEVICE" size="15" color="#ff888780">
+                            <Template><![CDATA[%s]]><Parameter expression="[COMPLICATION.TEXT]" /></Template>
+                        </Font>
+                    </Text>
+                </PartText>
+            </Complication>
+
+            <DefaultProviderPolicy
+                primaryProvider="com.dugcanlift.liftwear/com.dugcanlift.liftwear.FatComplicationService"
+                primaryProviderType="RANGED_VALUE" />
+        </ComplicationSlot>
+
+
 
         <Group x="0" y="0" width="450" height="450" name="header">
 
@@ -101,64 +201,7 @@
             </TimeText>
         </DigitalClock>
 
-        <Group x="0" y="0" width="450" height="450" name="macros">
-
-            
-
-            <PartDraw x="60" y="268" width="100" height="5">
-                <Rectangle x="0" y="0" width="100" height="5">
-                    <Fill color="#ff2c2c2a" />
-                </Rectangle>
-            </PartDraw>
-            <PartDraw x="60" y="268" width="61" height="5">
-                <Rectangle x="0" y="0" width="61" height="5">
-                    <Fill color="#ff85b7eb" />
-                </Rectangle>
-            </PartDraw>
-            <PartText x="60" y="276" width="100" height="22">
-                <Text align="START">
-                    <Font family="SYNC_TO_DEVICE" size="15" color="#ff888780">
-                        <Template>P 98</Template>
-                    </Font>
-                </Text>
-            </PartText>
-
-            <PartDraw x="175" y="268" width="100" height="5">
-                <Rectangle x="0" y="0" width="100" height="5">
-                    <Fill color="#ff2c2c2a" />
-                </Rectangle>
-            </PartDraw>
-            <PartDraw x="175" y="268" width="85" height="5">
-                <Rectangle x="0" y="0" width="85" height="5">
-                    <Fill color="#ffef9f27" />
-                </Rectangle>
-            </PartDraw>
-            <PartText x="175" y="276" width="100" height="22">
-                <Text align="START">
-                    <Font family="SYNC_TO_DEVICE" size="15" color="#ff888780">
-                        <Template>C 142</Template>
-                    </Font>
-                </Text>
-            </PartText>
-
-            <PartDraw x="290" y="268" width="100" height="5">
-                <Rectangle x="0" y="0" width="100" height="5">
-                    <Fill color="#ff2c2c2a" />
-                </Rectangle>
-            </PartDraw>
-            <PartDraw x="290" y="268" width="90" height="5">
-                <Rectangle x="0" y="0" width="90" height="5">
-                    <Fill color="#ffed93b1" />
-                </Rectangle>
-            </PartDraw>
-            <PartText x="290" y="276" width="100" height="22">
-                <Text align="START">
-                    <Font family="SYNC_TO_DEVICE" size="15" color="#ff888780">
-                        <Template>F 44</Template>
-                    </Font>
-                </Text>
-            </PartText>
-        </Group>
+        
 
         <Group x="0" y="0" width="450" height="450" name="vitals">
 
