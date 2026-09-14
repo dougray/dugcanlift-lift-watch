@@ -25,6 +25,7 @@
 		AC8755C6F499BD7149CA9629 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE31C8B7691C8E9F59A6857D /* RootView.swift */; };
 		B3CA9C78A784F214C1658678 /* QRCodeImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31649BED57316DAABE33D3C8 /* QRCodeImage.swift */; };
 		B8DE6EE19B2DA6D575A44A98 /* PhoneSyncTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9CF49F374C06EC02BAED965 /* PhoneSyncTransport.swift */; };
+		BD48727F14F50E08229986AB /* GoalsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA750E604D1CA0248E97BC90 /* GoalsView.swift */; };
 		BEDF1F49AD84D179709DBEC5 /* StepsComplication.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AC535CD72C56003983C6FAA /* StepsComplication.swift */; };
 		C0B1F3C44E5DB30204B24E04 /* FoodSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5546DCE37F6C7969F776B9C9 /* FoodSearchView.swift */; };
 		C3AADB61A4864A5F15197135 /* HealthKitExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C75CE0E4B0A49F5006BB74D /* HealthKitExporter.swift */; };
@@ -82,6 +83,7 @@
 		B7667159024FAE6AB6EAB81D /* LiftWatchWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = LiftWatchWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		BDACD875363836C5FC72A4AC /* FoodAmountEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodAmountEntryView.swift; sourceTree = "<group>"; };
 		D9CF49F374C06EC02BAED965 /* PhoneSyncTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneSyncTransport.swift; sourceTree = "<group>"; };
+		DA750E604D1CA0248E97BC90 /* GoalsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalsView.swift; sourceTree = "<group>"; };
 		DE31C8B7691C8E9F59A6857D /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		E4D0A5F49030D38F32670272 /* RecentFoodsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentFoodsListView.swift; sourceTree = "<group>"; };
 		F3CDE7C3773FDDA12CCA94DD /* LiftWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiftWatchApp.swift; sourceTree = "<group>"; };
@@ -142,6 +144,7 @@
 				1D322961F8D35A9155D4B9FD /* ExportFoodsView.swift */,
 				BDACD875363836C5FC72A4AC /* FoodAmountEntryView.swift */,
 				5546DCE37F6C7969F776B9C9 /* FoodSearchView.swift */,
+				DA750E604D1CA0248E97BC90 /* GoalsView.swift */,
 				0C75CE0E4B0A49F5006BB74D /* HealthKitExporter.swift */,
 				F3CDE7C3773FDDA12CCA94DD /* LiftWatchApp.swift */,
 				864598B14FCF13673677EAA0 /* LogSetView.swift */,
@@ -296,6 +299,7 @@
 				AC51EDF0D0227D842A371CAA /* ExportFoodsView.swift in Sources */,
 				056844BB2B2233C898B0FCE8 /* FoodAmountEntryView.swift in Sources */,
 				C0B1F3C44E5DB30204B24E04 /* FoodSearchView.swift in Sources */,
+				BD48727F14F50E08229986AB /* GoalsView.swift in Sources */,
 				C3AADB61A4864A5F15197135 /* HealthKitExporter.swift in Sources */,
 				E9F75F1C3FF42DA992D44A8A /* LiftWatchApp.swift in Sources */,
 				D62BA9841502AA38AB8ECC73 /* LogSetView.swift in Sources */,
