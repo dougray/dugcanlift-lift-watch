@@ -49,14 +49,15 @@ watch instead:
 xcrun devicectl list devices
 ```
 
-You want the **iPhone** reading `connected`. If it reads `unavailable`, nothing
-you do to the watch will help. `xctrace list devices` is the clearer view — it
-lists both devices under `Devices Offline` when the link is down, which
-`devicectl` does not make obvious.
+`xctrace list devices` is the more reliable view: it lists both devices under
+`Devices Offline` when the link is genuinely down, and that has matched reality
+where `devicectl`'s own State column has not.
 
-A *reachable* watch also reads `connected`. `available (paired)` means paired to
-the phone but not currently reachable from here, and is exactly the state in
-which installs fail.
+**`available (paired)` does not mean unreachable.** An earlier version of this
+page said it did. It does not: installs to both the phone and the watch succeed
+routinely while `devicectl list devices` reports that state, and treating it as
+a precondition only produces tooling that refuses to try. Read the state as a
+hint, never as a gate — the install itself is the test.
 
 These two messages both mean the link, not the code and not the watch:
 
@@ -70,14 +71,17 @@ diagnosis is one device to the left of where the errors point.
 
 In order:
 
-1. **Get the iPhone back to `connected`.** Plug it into this Mac, unlock it,
-   accept "Trust This Computer" if asked. Re-check with the command above.
-2. If it stays `unavailable` after a replug, open **Xcode → Window → Devices and
+1. **Try the install anyway**, whatever the State column says. If it works, the
+   state was noise.
+2. **Reconnect the iPhone.** Plug it into this Mac, unlock it, accept "Trust
+   This Computer" if asked. A watch install rides that link, so a phone that
+   `xctrace` calls offline takes the watch down with it.
+3. If it stays offline after a replug, open **Xcode → Window → Devices and
    Simulators**. That is where a device gets re-paired and, unlike `devicectl`,
    it shows the real error. If the phone does not appear there either, the
    CoreDevice daemon is stale and a restart of the Mac clears it.
-3. Only then look at the watch: unlocked, on the wrist, on this Mac's Wi-Fi.
-4. **Developer Mode** must be on (Settings → Privacy & Security → Developer
+4. Only then look at the watch: unlocked, on the wrist, on this Mac's Wi-Fi.
+5. **Developer Mode** must be on (Settings → Privacy & Security → Developer
    Mode, restart when asked) — but it is rarely the cause, and a watch that has
    it off will say so plainly rather than rejecting the connection.
 
