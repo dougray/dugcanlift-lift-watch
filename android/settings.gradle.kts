@@ -13,4 +13,4 @@ dependencyResolutionManagement {
     repositories { google(); mavenCentral() }
 }
 rootProject.name = "LiftWear"
-include(":liftkit", ":wear")
+include(":liftkit", ":wear", ":facelift")
