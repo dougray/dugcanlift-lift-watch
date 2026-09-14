@@ -82,6 +82,9 @@ jobs:
         run: make test
 
       # The app itself has no test target; compiling it for the watch
-      # simulator is what catches a broken build.
+      # simulator is what catches a broken build. The generic destination
+      # builds against the simulator SDK without needing a booted device:
+      # the runner image only carries a subset of the watch simulators and
+      # not the Series 11 the Makefile defaults to.
       - name: Build for the watch simulator
-        run: make build
+        run: make build DEST='generic/platform=watchOS Simulator'
