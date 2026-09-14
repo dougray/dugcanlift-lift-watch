@@ -47,34 +47,63 @@ struct MacroProvider: TimelineProvider {
     }
 }
 
+/// A flat progress track. `Gauge` is the obvious reach here, but its
+/// accessory styles bring their own labels and insets that fight a stacked
+/// layout this tight; a capsule pair is predictable at every watch size.
+private struct Track: View {
+    let fraction: Double
+    let height: CGFloat
+    let tint: Color
+
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(.tertiary)
+                Capsule()
+                    .fill(tint)
+                    .frame(width: geometry.size.width * fraction)
+            }
+        }
+        .frame(height: height)
+    }
+}
+
 struct MacroComplicationView: View {
     let entry: MacroEntry
 
     var body: some View {
-        let calories = MacroFormatter.calories(entry.totals, goals: entry.goals)
-        let macros = MacroFormatter.macros(entry.totals, goals: entry.goals)
+        let dial = MacroFormatter.dial(entry.totals, goals: entry.goals)
+        let bars = MacroFormatter.bars(entry.totals, goals: entry.goals)
 
-        VStack(alignment: .leading, spacing: 1) {
-            Text(calories.text)
-                .font(.headline)
-                .foregroundStyle(calories.isOverGoal ? Color.red : Color.primary)
-            HStack(spacing: 6) {
-                line(macros[0])
-                line(macros[1])
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(dial.consumedText)
+                    .font(.title3.weight(.semibold))
+                Spacer(minLength: 4)
+                Text(dial.remainingText)
+                    .font(.caption2)
+                    .foregroundStyle(dial.isOverGoal ? Color.red : Color.secondary)
             }
-            line(macros[2])
+            Track(fraction: dial.fraction, height: 4,
+                  tint: dial.isOverGoal ? .red : .accentColor)
+            HStack(spacing: 5) {
+                // Exactly three, protein/carbs/fat, per
+                // `testBarsAreAlwaysThreeInProteinCarbsFatOrder`.
+                ForEach(Array(bars.enumerated()), id: \.offset) { _, bar in
+                    VStack(alignment: .leading, spacing: 1) {
+                        Track(fraction: bar.fraction, height: 2,
+                              tint: bar.isOverGoal ? .red : .secondary)
+                        Text(bar.label)
+                            .font(.system(size: 10))
+                            .foregroundStyle(bar.isOverGoal ? Color.red : Color.secondary)
+                    }
+                }
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .widgetURL(WatchRoute.foodLog.url)
         .containerBackground(.clear, for: .widget)
-    }
-
-    /// `MacroFormatter.macros` returns exactly three readouts in a fixed
-    /// order, asserted by `testMacrosAreAlwaysThreeInProteinCarbsFatOrder`.
-    private func line(_ readout: Readout) -> some View {
-        Text(readout.text)
-            .font(.caption2)
-            .foregroundStyle(readout.isOverGoal ? Color.red : Color.secondary)
     }
 }
 

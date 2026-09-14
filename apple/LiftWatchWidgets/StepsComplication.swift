@@ -46,7 +46,9 @@ struct StepsComplicationView: View {
 
     var body: some View {
         Gauge(value: entry.readout.fraction ?? 0) {
-            Text("Steps")
+            // The ring's own label slot. A footprint reads at 30pt where the
+            // word "Steps" does not.
+            Image(systemName: "shoeprints.fill")
         } currentValueLabel: {
             Text(entry.readout.text)
         }
