@@ -60,6 +60,9 @@ struct StartWorkoutView: View {
                 NavigationLink("Export Foods") {
                     ExportFoodsView()
                 }
+                NavigationLink("Goals") {
+                    GoalsView()
+                }
             }
         }
         .navigationTitle("LIFT")
