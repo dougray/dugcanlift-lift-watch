@@ -56,3 +56,32 @@ jobs:
           name: lift-wear-debug-apk
           path: android/wear/build/outputs/apk/debug/wear-debug.apk
           retention-days: 7
+
+  apple:
+    name: watchOS test and build
+    # macos-26 ships Xcode 26.6, matching local. A simulator build needs no
+    # signing identity, so the free Personal Team is not a problem here.
+    runs-on: macos-26
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: apple
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Select Xcode 26.6
+        run: sudo xcode-select -s /Applications/Xcode_26.6.app
+
+      - name: Install xcodegen and xcbeautify
+        run: brew install xcodegen xcbeautify
+
+      # LiftKit domain tests: swift test, no simulator. The trailing
+      # swift-testing "0 tests in 0 suites" line is expected; the XCTest
+      # "Executed N tests" line above it is the real count.
+      - name: LiftKit unit tests
+        run: make test
+
+      # The app itself has no test target; compiling it for the watch
+      # simulator is what catches a broken build.
+      - name: Build for the watch simulator
+        run: make build
