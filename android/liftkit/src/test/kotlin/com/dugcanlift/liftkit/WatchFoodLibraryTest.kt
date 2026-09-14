@@ -21,5 +21,8 @@ class WatchFoodLibraryTest {
         val lib = WatchFoodLibrary.parse("""{"categories":[],"foods":[["B egg",0,1,0,0,0,0],["A egg",0,1,0,0,0,0]]}""")
         assertEquals(listOf("B egg", "A egg"), lib.search("egg").map { it.name })
     }
-    @Test fun `an ounce is 28,3495 grams`() = assertEquals(28.3495, ServingUnit.OUNCES.toGrams(1.0), 1e-9)
+    /** watchOS's `ServingUnit.gramsPerOunce`, to the digit. Settled 2026-09-13: the two watches
+     *  use one constant, so the same portion cannot record different grams on each. */
+    @Test fun `an ounce is the same number of grams watchOS uses`() =
+        assertEquals(28.3495231, ServingUnit.OUNCES.toGrams(1.0), 1e-9)
 }
