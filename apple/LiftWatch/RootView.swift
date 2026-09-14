@@ -19,6 +19,7 @@ struct RootView: View {
                 WorkoutView()
             }
         }
+        .task { await StepsAuthorization.request() }
     }
 }
 
