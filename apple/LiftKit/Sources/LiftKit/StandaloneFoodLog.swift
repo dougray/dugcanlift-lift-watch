@@ -58,12 +58,21 @@ public func exportEmptyMessage(skippedCount: Int) -> String {
 ///   schema change into a silent wipe of every entry the user had.
 public final class StandaloneFoodLog {
 
+    /// Every defaults key this store owns, in one place so the App Group
+    /// migration copies all of them. Duplicated string literals that drift
+    /// would silently migrate only part of the log.
+    public static let storageKeys = [
+        "com.dugcanlift.lift.standaloneFoodLog",
+        "com.dugcanlift.lift.standaloneFoodLog.skippedCount",
+        "com.dugcanlift.lift.standaloneFoodLog.unreadable"
+    ]
+
     private let defaults: UserDefaults
-    private let key = "com.dugcanlift.lift.standaloneFoodLog"
-    private let skippedCountKey = "com.dugcanlift.lift.standaloneFoodLog.skippedCount"
+    private let key = StandaloneFoodLog.storageKeys[0]
+    private let skippedCountKey = StandaloneFoodLog.storageKeys[1]
     /// Where a blob that could not be parsed at all is set aside, so that
     /// replacing it is never the same thing as destroying it.
-    private let quarantineKey = "com.dugcanlift.lift.standaloneFoodLog.unreadable"
+    private let quarantineKey = StandaloneFoodLog.storageKeys[2]
     private let maxEntries: Int
 
     /// Bound on the carried-forward shadow list, matching `maxEntries`: it
