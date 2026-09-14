@@ -1,6 +1,7 @@
 import Foundation
 import LiftKit
 import SwiftUI
+import WidgetKit
 
 /// Owns the workout the watch is training against right now.
 ///
@@ -130,6 +131,10 @@ final class WorkoutSessionModel: ObservableObject {
     /// food came from the bundled library and has no reference id at all.
     func recordLocally(food: WatchFood, grams: Double, meal: FoodLogMeal, loggedAt: Date = .now) {
         foodLog.append(LoggedFood(food: food, grams: grams, meal: meal, loggedAt: loggedAt))
+        // The complication's only path to being current. Without this the
+        // face shows stale macros until the next scheduled refresh, which the
+        // platform meters in minutes to tens of minutes.
+        WidgetCenter.shared.reloadTimelines(ofKind: "LiftMacros")
     }
 
     private func enqueue(_ event: SyncEnvelope.Event, workoutID: UUID, revision: Int,
