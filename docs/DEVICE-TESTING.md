@@ -16,19 +16,52 @@
 
 ### From the command line
 
-Once a signing team is set in the project:
-
 ```sh
 cd apple
-xcodebuild -project LiftWatch.xcodeproj -scheme LiftWatch \
-  -destination 'platform=watchOS,name=<Your Watch Name>' build
+make watch          # build and install on the paired Apple Watch
+make watch-build    # build only
+make devices        # what devicectl can see
+make watch-destinations   # what xcodebuild can see
+make doctor         # tooling, simulator and watch in one line each
 ```
 
-List the exact destination string Xcode sees for your paired watch:
+The watch has **two different ids and they are not interchangeable**:
+`devicectl` uses a CoreDevice UUID (`4D719BE4-…`), while xcodebuild's
+`-destination` uses the hardware UDID (`00008310-…`). `make watch-destinations`
+prints the second; `make watch WATCH=<id>` wants the first. Passing the wrong
+one to `devicectl` fails the same way an unreachable watch does, which makes it
+easy to misread.
 
-```sh
-xcodebuild -project LiftWatch.xcodeproj -scheme LiftWatch -showdestinations
-```
+`make watch` builds against `generic/platform=watchOS` rather than the specific
+watch on purpose. A device-targeted `-destination` has to reach the watch
+*before* it will compile anything, so a watch that is merely unreachable costs
+you the build too; the generic slice compiles regardless and only the install
+step needs the hardware.
+
+### When the watch will not take an install
+
+The build succeeding and the install failing are separate problems. These two
+messages both mean the watch, not the code:
+
+- `devicectl`: *The device rejected the connection request.*
+- `xcodebuild`: *may need to be unlocked to recover from previously reported
+  preparation errors.*
+
+In order of likelihood:
+
+1. **Developer Mode is off on the watch.** Settings → Privacy & Security →
+   Developer Mode, then restart it when asked. A watch that has only ever been
+   paired to a phone will not have this on, and nothing on the Mac can turn it
+   on. This is the usual answer.
+2. **The watch is locked, off the wrist, or not on this Mac's Wi-Fi.** Watch
+   installs go over the network; there is no cable.
+3. **It failed preparation earlier and will not retry by itself.** Xcode →
+   Window → Devices and Simulators, select the watch, let it finish. That step
+   has no command-line equivalent, and it is where the real error appears.
+
+Note that `devicectl list devices` reporting `available (paired)` rather than
+`connected` is normal for a watch and is *not* itself the problem — a watch
+that installs fine can still read `available (paired)`.
 
 A sandboxed/CI shell without access to Apple's local device-discovery service
 (`devicectl`/`xctrace` showing your paired iPhone as "unavailable" despite a
