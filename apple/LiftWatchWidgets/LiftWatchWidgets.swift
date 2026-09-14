@@ -6,5 +6,7 @@ struct LiftWatchWidgets: WidgetBundle {
     var body: some Widget {
         LiftMacrosWidget()
         LiftStepsWidget()
+        LiftWeatherWidget()
+        LiftHeartWidget()
     }
 }

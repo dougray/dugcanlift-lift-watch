@@ -5,6 +5,7 @@ struct RootView: View {
     @EnvironmentObject private var session: WorkoutSessionModel
     @EnvironmentObject private var outdoorRecorder: OutdoorActivityRecorder
     @State private var path: [WatchRoute] = []
+    @State private var locationSnapshotter = LocationSnapshotter()
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -28,7 +29,10 @@ struct RootView: View {
                 }
             }
         }
-        .task { await StepsAuthorization.request() }
+        .task {
+            locationSnapshotter.refresh()
+            await HealthAuthorization.request()
+        }
         .onOpenURL { url in
             guard let route = WatchRoute(url: url) else { return }
             // Pushed, never substituted. A live workout or an active run keeps
