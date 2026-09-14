@@ -25,6 +25,7 @@ targets:
     platform: watchOS
     sources:
       - path: LiftWatch
+      - path: LiftWatchShared
     dependencies:
       - package: LiftKit
         product: LiftKit
@@ -122,6 +123,9 @@ targets:
     platform: watchOS
     sources:
       - path: LiftWatchWidgets
+      # StepsReader and StepsAuthorization: the extension reads steps, the
+      # app is the only one that may prompt for access.
+      - path: LiftWatchShared
     dependencies:
       - package: LiftKit
         product: LiftKit
@@ -140,8 +144,14 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
+        # The extension is the process that runs the step query, so it needs
+        # the usage string as well as the app.
+        NSHealthShareUsageDescription: >-
+          LIFT shows today's step count on your watch face.
     entitlements:
       path: Config/LiftWatchWidgets.entitlements
       properties:
+        com.apple.developer.healthkit: true
+        com.apple.developer.healthkit.access: []
         com.apple.security.application-groups:
           - group.com.dugcanlift.watch
