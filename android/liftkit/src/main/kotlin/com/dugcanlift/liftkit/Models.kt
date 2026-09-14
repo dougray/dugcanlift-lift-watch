@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 @Serializable enum class FoodLogMeal { BREAKFAST, LUNCH, DINNER, SNACK }
 
 enum class ServingUnit(private val gramsPerUnit: Double) {
-    GRAMS(1.0), OUNCES(28.3495);
+    GRAMS(1.0), OUNCES(28.3495231);
     fun toGrams(amount: Double) = amount * gramsPerUnit
     fun fromGrams(grams: Double) = grams / gramsPerUnit
 }
