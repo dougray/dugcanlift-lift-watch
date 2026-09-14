@@ -60,3 +60,6 @@ android/build/
 android/*/build/
 android/local.properties
 android/.kotlin/
+
+# Release signing: points at a key in ~/keystores and carries its passwords.
+android/keystore.properties
