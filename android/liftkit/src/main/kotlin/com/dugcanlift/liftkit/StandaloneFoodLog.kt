@@ -1,8 +1,6 @@
 package com.dugcanlift.liftkit
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
-import java.time.Instant
-import java.time.ZoneId
 
 interface LogStorage {
     fun read(): ByteArray?
@@ -48,8 +46,10 @@ private class Loaded(val log: StoredLog?, val undecodable: ByteArray?)
 
 /**
  * The retained local food log — separate from any sync queue on purpose: it is what a watch
- * that has never seen a phone has to export. Capped at 200 entries; the 60-day window is a
- * read-side filter, not a delete (see [live]).
+ * that has never seen a phone has to export. Capped at 200 entries, and by nothing else:
+ * settled 2026-09-13, age neither deletes nor hides. A watch out of contact for two months
+ * still hands over everything it recorded, and no code path here reads the clock to decide
+ * what a user may see or export.
  *
  * **Nothing here deletes data it does not understand.** A write only ever persists entries this
  * build decoded plus the raw JSON of the ones it did not; a blob that is not decodable at all is
@@ -57,14 +57,9 @@ private class Loaded(val log: StoredLog?, val undecodable: ByteArray?)
  * the only copy of this data that exists anywhere until a code is scanned (`allowBackup="false"`),
  * so an overwrite here is permanent.
  */
-class StandaloneFoodLog(
-    private val storage: LogStorage,
-    private val clock: () -> Long = { System.currentTimeMillis() / 1000 },
-    private val zone: ZoneId = ZoneId.systemDefault()
-) {
+class StandaloneFoodLog(private val storage: LogStorage) {
     companion object {
         const val MAX_ENTRIES = 200
-        const val MAX_AGE_DAYS = 60L
         /** Bound on `StoredLog.unreadable`, matching [MAX_ENTRIES]: the carried-forward shadow list
          *  should never be able to hold more dead weight than the live log itself could ever hold. */
         const val MAX_UNREADABLE_ENTRIES = 200
@@ -124,11 +119,10 @@ class StandaloneFoodLog(
 
     private fun save(log: StoredLog) = storage.write(json.encodeToString(StoredLog.serializer(), log).toByteArray())
 
-    val entries: List<LoggedFood> get() = live(load().log?.entries ?: emptyList())
+    /** Everything storage holds, oldest first. If it is retained, it is exportable. */
+    val entries: List<LoggedFood> get() =
+        (load().log?.entries ?: emptyList()).sortedBy { it.loggedAtEpochSeconds }
     val skippedCount: Int get() = load().log?.skipped ?: 0
-    /** Entries still in storage but outside the 60-day window: kept, but not shown and not exported.
-     *  Lets an empty Export screen say "these expired" rather than "you never logged anything". */
-    val expiredCount: Int get() = (load().log?.entries ?: emptyList()).let { it.size - live(it).size }
     /** Entries this build still cannot decode, after retrying every one of them on this load. */
     val unreadableCount: Int get() = load().log?.unreadable?.size ?: 0
     /** Unreadable entries dropped for exceeding [MAX_UNREADABLE_ENTRIES] — a count, never silence. */
@@ -175,20 +169,5 @@ class StandaloneFoodLog(
         val sorted = all.sortedBy { it.loggedAtEpochSeconds }
         return if (sorted.size > MAX_ENTRIES) sorted.takeLast(MAX_ENTRIES) to (sorted.size - MAX_ENTRIES)
         else sorted to 0
-    }
-
-    /**
-     * The 60-day window, as a view over storage. Calendar days, not seconds: seconds arithmetic
-     * repeats a day across a DST fall-back. Two clock disagreements are excluded by construction —
-     * an entry stamped after `now` is never expired (the clock was ahead when it was logged), and
-     * if any stored entry is newer than `now` the clock is behind the data, so no entry is judged
-     * at all until it catches up.
-     */
-    private fun live(all: List<LoggedFood>): List<LoggedFood> {
-        val sorted = all.sortedBy { it.loggedAtEpochSeconds }
-        val now = clock()
-        if (sorted.any { it.loggedAtEpochSeconds > now }) return sorted
-        val cutoff = Instant.ofEpochSecond(now).atZone(zone).minusDays(MAX_AGE_DAYS).toEpochSecond()
-        return sorted.filter { it.loggedAtEpochSeconds >= cutoff }
     }
 }
