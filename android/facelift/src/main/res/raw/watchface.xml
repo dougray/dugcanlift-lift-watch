@@ -60,33 +60,44 @@
 
         <Group x="0" y="0" width="450" height="450" name="macros">
 
-            <PartText x="60" y="196" width="200" height="44">
-                <Text align="START">
-                    <Font family="SYNC_TO_DEVICE" size="38" weight="BOLD" color="#ffffffff">
-                        <Template>1,420</Template>
-                    </Font>
-                </Text>
-            </PartText>
+            <ComplicationSlot slotId="1" x="60" y="190" width="330" height="66"
+                              supportedTypes="RANGED_VALUE" displayName="Calories">
+                <DefaultProviderPolicy
+                    primaryProvider="com.dugcanlift.liftwear/com.dugcanlift.liftwear.MacrosComplicationService"
+                    primaryProviderType="RANGED_VALUE" />
 
-            <PartText x="240" y="212" width="150" height="26">
-                <Text align="END">
-                    <Font family="SYNC_TO_DEVICE" size="18" color="#ff888780">
-                        <Template>880 left</Template>
-                    </Font>
-                </Text>
-            </PartText>
+                <Complication type="RANGED_VALUE">
+                    <PartText x="0" y="6" width="200" height="44">
+                        <Text align="START">
+                            <Font family="SYNC_TO_DEVICE" size="38" weight="BOLD" color="#ffffffff">
+                                <Template>%s<Parameter expression="[COMPLICATION.TEXT]" /></Template>
+                            </Font>
+                        </Text>
+                    </PartText>
 
-            <PartDraw x="60" y="246" width="330" height="8">
-                <Rectangle x="0" y="0" width="330" height="8">
-                    <Fill color="#ff2c2c2a" />
-                </Rectangle>
-            </PartDraw>
+                    <PartText x="180" y="22" width="150" height="26">
+                        <Text align="END">
+                            <Font family="SYNC_TO_DEVICE" size="18" color="#ff888780">
+                                <Template>of %.0f<Parameter expression="[COMPLICATION.RANGED_VALUE_MAX]" /></Template>
+                            </Font>
+                        </Text>
+                    </PartText>
 
-            <PartDraw x="60" y="246" width="205" height="8">
-                <Rectangle x="0" y="0" width="205" height="8">
-                    <Fill color="#ff5dcaa5" />
-                </Rectangle>
-            </PartDraw>
+                    <PartDraw x="0" y="56" width="330" height="8">
+                        <Rectangle x="0" y="0" width="330" height="8">
+                            <Fill color="#ff2c2c2a" />
+                        </Rectangle>
+                    </PartDraw>
+
+                    <PartDraw x="0" y="56" width="330" height="8">
+                        <Rectangle x="0" y="0" width="330" height="8">
+                            <Transform target="width"
+                                       value="330 * [COMPLICATION.RANGED_VALUE_VALUE] / [COMPLICATION.RANGED_VALUE_MAX]" />
+                            <Fill color="#ff5dcaa5" />
+                        </Rectangle>
+                    </PartDraw>
+                </Complication>
+            </ComplicationSlot>
 
             <PartDraw x="60" y="268" width="100" height="5">
                 <Rectangle x="0" y="0" width="100" height="5">

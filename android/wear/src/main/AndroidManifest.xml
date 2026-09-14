@@ -11,5 +11,24 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-    </application>
+    
+        <!-- The only route LIFT's own numbers have onto a watch face: Watch
+             Face Format can read the device's step count and heart rate, but
+             never another app's storage. face-lift binds a slot to this. -->
+        <service
+            android:name=".MacrosComplicationService"
+            android:exported="true"
+            android:label="LIFT calories"
+            android:permission="com.google.android.wearable.permission.BIND_COMPLICATION_PROVIDER">
+            <intent-filter>
+                <action android:name="android.support.wearable.complications.ACTION_COMPLICATION_UPDATE_REQUEST" />
+            </intent-filter>
+            <meta-data
+                android:name="android.support.wearable.complications.SUPPORTED_TYPES"
+                android:value="RANGED_VALUE,SHORT_TEXT" />
+            <meta-data
+                android:name="android.support.wearable.complications.UPDATE_PERIOD_SECONDS"
+                android:value="300" />
+        </service>
+</application>
 </manifest>
