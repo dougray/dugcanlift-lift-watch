@@ -8,9 +8,28 @@ import androidx.wear.compose.material.*
 import com.dugcanlift.liftkit.*
 import java.time.LocalTime
 
-/** Thresholds match LIFT Android's mealForHour and LiftCore's MealType.forHour. */
+/**
+ * Which meal a given hour suggests. **Matches watchOS's `FoodLogMeal.forHour` exactly**
+ * (5/11/16/22), settled 2026-09-13 so the two watches agree.
+ *
+ * This deliberately differs from LIFT Android's own `mealForHour` (11/15/21), which these
+ * thresholds used to copy. Two consequences, both intended:
+ *
+ * - Before 05:00 is a **snack, not breakfast**. Food logged at 3am is far more likely to be a
+ *   night shift or a bad night than the first meal of the day, and watchOS has always said so.
+ * - Lunch runs to 16:00 and dinner to 22:00, an hour later than the phone on each.
+ *
+ * So the same food logged at 15:30 lands in Lunch on the watch and Dinner on LIFT Android.
+ * The suggestion is only ever a pre-selection -- every screen that uses it lets the meal be
+ * changed before anything is written -- but if the phone is ever brought into line, this is the
+ * function it should be brought into line *with*.
+ */
 fun defaultMeal(hour: Int): FoodLogMeal = when {
-    hour < 11 -> FoodLogMeal.BREAKFAST; hour < 15 -> FoodLogMeal.LUNCH; hour < 21 -> FoodLogMeal.DINNER; else -> FoodLogMeal.SNACK
+    hour < 5 -> FoodLogMeal.SNACK
+    hour < 11 -> FoodLogMeal.BREAKFAST
+    hour < 16 -> FoodLogMeal.LUNCH
+    hour < 22 -> FoodLogMeal.DINNER
+    else -> FoodLogMeal.SNACK
 }
 
 @Composable fun MealScreen(draft: Draft, log: StandaloneFoodLog, onDone: () -> Unit) {
