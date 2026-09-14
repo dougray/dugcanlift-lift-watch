@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  face-lift. 450x450 round.
+
+  Laid out for a circle, not the square in the reference sketch: the corners
+  of a round display are not drawable, so the step and heart readouts sit
+  inboard of where they would on an Apple Watch.
+-->
+<WatchFace width="450" height="450">
+
+    <Metadata key="CLOCK_TYPE" value="DIGITAL" />
+    <Metadata key="PREVIEW_TIME" value="10:08:32" />
+
+    <Scene backgroundColor="#ff000000">
+
+        <Group x="0" y="0" width="450" height="450" name="header">
+
+            <PartText x="60" y="70" width="150" height="40">
+                <Text align="START">
+                    <Font family="SYNC_TO_DEVICE" size="30" weight="BOLD" color="#ffd85a30">
+                        <Template>%s<Parameter expression="[STEP_COUNT]" /></Template>
+                    </Font>
+                </Text>
+            </PartText>
+
+            <PartText x="60" y="104" width="150" height="26">
+                <Text align="START">
+                    <Font family="SYNC_TO_DEVICE" size="18" color="#ff888780">
+                        <Template>steps</Template>
+                    </Font>
+                </Text>
+            </PartText>
+
+            <PartText x="240" y="66" width="150" height="28">
+                <Text align="END">
+                    <Font family="SYNC_TO_DEVICE" size="20" weight="BOLD" color="#ff5dcaa5">
+                        <Template>%s %s<Parameter expression="[DAY_OF_WEEK_S]" /><Parameter expression="[DAY]" /></Template>
+                    </Font>
+                </Text>
+            </PartText>
+        </Group>
+
+        <DigitalClock x="240" y="92" width="150" height="70">
+            <TimeText x="0" y="0" width="150" height="70" format="hh:mm" align="END">
+                <Font family="SYNC_TO_DEVICE" size="56" color="#ffffffff" />
+            </TimeText>
+        </DigitalClock>
+
+        <Group x="0" y="0" width="450" height="450" name="macros">
+
+            <PartText x="60" y="196" width="200" height="44">
+                <Text align="START">
+                    <Font family="SYNC_TO_DEVICE" size="38" weight="BOLD" color="#ffffffff">
+                        <Template>1,420</Template>
+                    </Font>
+                </Text>
+            </PartText>
+
+            <PartText x="240" y="212" width="150" height="26">
+                <Text align="END">
+                    <Font family="SYNC_TO_DEVICE" size="18" color="#ff888780">
+                        <Template>880 left</Template>
+                    </Font>
+                </Text>
+            </PartText>
+
+            <PartDraw x="60" y="246" width="330" height="8">
+                <Rectangle x="0" y="0" width="330" height="8">
+                    <Fill color="#ff2c2c2a" />
+                </Rectangle>
+            </PartDraw>
+
+            <PartDraw x="60" y="246" width="205" height="8">
+                <Rectangle x="0" y="0" width="205" height="8">
+                    <Fill color="#ff5dcaa5" />
+                </Rectangle>
+            </PartDraw>
+
+            <PartDraw x="60" y="268" width="100" height="5">
+                <Rectangle x="0" y="0" width="100" height="5">
+                    <Fill color="#ff2c2c2a" />
+                </Rectangle>
+            </PartDraw>
+            <PartDraw x="60" y="268" width="61" height="5">
+                <Rectangle x="0" y="0" width="61" height="5">
+                    <Fill color="#ff85b7eb" />
+                </Rectangle>
+            </PartDraw>
+            <PartText x="60" y="276" width="100" height="22">
+                <Text align="START">
+                    <Font family="SYNC_TO_DEVICE" size="15" color="#ff888780">
+                        <Template>P 98</Template>
+                    </Font>
+                </Text>
+            </PartText>
+
+            <PartDraw x="175" y="268" width="100" height="5">
+                <Rectangle x="0" y="0" width="100" height="5">
+                    <Fill color="#ff2c2c2a" />
+                </Rectangle>
+            </PartDraw>
+            <PartDraw x="175" y="268" width="85" height="5">
+                <Rectangle x="0" y="0" width="85" height="5">
+                    <Fill color="#ffef9f27" />
+                </Rectangle>
+            </PartDraw>
+            <PartText x="175" y="276" width="100" height="22">
+                <Text align="START">
+                    <Font family="SYNC_TO_DEVICE" size="15" color="#ff888780">
+                        <Template>C 142</Template>
+                    </Font>
+                </Text>
+            </PartText>
+
+            <PartDraw x="290" y="268" width="100" height="5">
+                <Rectangle x="0" y="0" width="100" height="5">
+                    <Fill color="#ff2c2c2a" />
+                </Rectangle>
+            </PartDraw>
+            <PartDraw x="290" y="268" width="90" height="5">
+                <Rectangle x="0" y="0" width="90" height="5">
+                    <Fill color="#ffed93b1" />
+                </Rectangle>
+            </PartDraw>
+            <PartText x="290" y="276" width="100" height="22">
+                <Text align="START">
+                    <Font family="SYNC_TO_DEVICE" size="15" color="#ff888780">
+                        <Template>F 44</Template>
+                    </Font>
+                </Text>
+            </PartText>
+        </Group>
+
+        <Group x="0" y="0" width="450" height="450" name="vitals">
+
+            <PartText x="90" y="350" width="90" height="32">
+                <Text align="CENTER">
+                    <Font family="SYNC_TO_DEVICE" size="24" weight="BOLD" color="#ff85b7eb">
+                        <Template>90°</Template>
+                    </Font>
+                </Text>
+            </PartText>
+
+            <PartText x="270" y="350" width="90" height="32">
+                <Text align="CENTER">
+                    <Font family="SYNC_TO_DEVICE" size="24" weight="BOLD" color="#ffe24b4a">
+                        <Template>%s<Parameter expression="[HEART_RATE]" /></Template>
+                    </Font>
+                </Text>
+            </PartText>
+
+            <PartText x="180" y="352" width="90" height="28">
+                <Text align="CENTER">
+                    <Font family="SYNC_TO_DEVICE" size="20" color="#ff5dcaa5">
+                        <Template>98%%</Template>
+                    </Font>
+                </Text>
+            </PartText>
+        </Group>
+    </Scene>
+</WatchFace>
