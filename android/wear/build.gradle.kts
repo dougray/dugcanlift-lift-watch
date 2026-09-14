@@ -1,7 +1,19 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
 }
+
+// Absent for anyone who clones this repo without the release key. Release
+// builds are then left unsigned rather than failing outright, which is the
+// same arrangement LIFT Android uses.
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val hasSigningConfig = keystorePropertiesFile.exists()
+val keystoreProperties = Properties().apply {
+    if (hasSigningConfig) load(keystorePropertiesFile.inputStream())
+}
+
 android {
     namespace = "com.dugcanlift.liftwear"
     compileSdk { version = release(37) }
@@ -10,9 +22,36 @@ android {
         minSdk = 30
         targetSdk = 37
         versionCode = 1
-        versionName = "0.1"
+        versionName = "1.0"
     }
-    buildTypes { release { isMinifyEnabled = false } }
+
+    signingConfigs {
+        if (hasSigningConfig) {
+            create("release") {
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
+    buildTypes {
+        // A debug build installs under its own application id so it sits
+        // beside a sideloaded release rather than replacing it -- the release
+        // APK is what people download from the site, and re-flashing a debug
+        // build over it would take their food log with it.
+        debug {
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+        }
+        release {
+            isMinifyEnabled = false
+            if (hasSigningConfig) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
+    }
     testOptions { unitTests.isIncludeAndroidResources = true }
 }
 kotlin { jvmToolchain(17) }

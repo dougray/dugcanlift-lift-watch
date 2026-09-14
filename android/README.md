@@ -44,3 +44,27 @@ phone transport here. The watch is standalone-first: it logs food with no
 phone present and exports the log as a QR code the LIFT PWA scans, the same
 path watchOS uses (`android/liftkit/StandaloneExport.kt`,
 `docs/ARCHITECTURE.md`).
+
+## Cutting a Wear OS release
+
+The release build is signed with the LIFT product-family key, the same one
+LIFT Android 1.3 carries — different `applicationId`, so the two never
+collide on a device. Gradle reads it from `android/keystore.properties`,
+which is gitignored and absent from a fresh clone; without it the release
+variant still builds, just unsigned.
+
+```
+storeFile=/Users/<you>/keystores/dugcanlift-release.jks
+storePassword=...
+keyAlias=dugcanlift
+keyPassword=...
+```
+
+```sh
+export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+./gradlew :wear:test :wear:assembleRelease
+apksigner verify --print-certs wear/build/outputs/apk/release/wear-release.apk
+```
+
+The signer's SHA-256 must match the one LIFT Android reports. Publish the
+APK as `assets/downloads/lift-wear.apk` in `dugcanlift-site`.
