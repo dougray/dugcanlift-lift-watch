@@ -28,14 +28,39 @@ face once it is configured.
    protein, 167 g carbs, 49 g fat, 10,000 steps).
 5. Grant the Health prompt on first launch, or the steps slot shows a dash.
 
-## Sharing it
+## Sharing it — broken on watchOS 26
 
-Long-press the face, tap Share, and send it as a `.watchface`.
+**Face Sharing does not work on watchOS 26.** `CLKWatchFaceLibrary` stopped
+functioning in that release and it has taken out the large third-party
+platforms (Facer and others) along with it. Stormbringer runs 26.6, so there
+is no route to exporting this arrangement as a `.watchface` file today.
 
-The LIFT slots only fill for someone who already has the watch app installed.
-Face Sharing points recipients at an App Store listing that does not exist —
-LIFT is sideload-only for now — so a shared face reaches anyone else with two
-empty slots. This is a limitation of distribution, not of the face.
+Earlier revisions of this document described sharing the configured face.
+That advice was wrong for watchOS 26 and has been removed rather than
+softened: a reader following it would have gone hunting for a Share button
+that cannot work.
+
+If Apple restores the API, the shared face would still only fill the LIFT
+slots for someone who already has the watch app installed, and Face Sharing
+would point everyone else at an App Store listing that does not exist.
+
+## What third-party "watch face" apps actually do
+
+Worth writing down, because the App Store is full of them and their existence
+makes the constraint above look false.
+
+watchOS has no API for rendering a watch face. It never has. Every app that
+advertises custom faces is doing one of three things:
+
+- **Face sharing** — bundling Apple's own faces preconfigured with colours,
+  photos and complications. Broken on watchOS 26, as above.
+- **The Photos trick** — generating an image that looks like a designed face,
+  which the user sets as the background of Apple's Photos face. Completely
+  custom-looking, and completely static.
+- **Complication suites** — highly customisable complications, which in
+  aggregate feel like a custom face. This is the category LIFT is in.
+
+The third is the only one of the three that can show a number that changes.
 
 ## What is live and what is not
 
