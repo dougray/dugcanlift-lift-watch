@@ -16,7 +16,9 @@ final class WorkoutSessionModel: ObservableObject {
     /// Retained regardless of whether a phone exists. See
     /// `StandaloneFoodLog`'s doc comment for why `SyncOutbox` cannot serve
     /// this purpose.
-    let foodLog = StandaloneFoodLog()
+    /// The App Group suite, not `.standard`: the widget extension is a
+    /// separate process with its own container and can only see this one.
+    let foodLog = StandaloneFoodLog(defaults: SharedDefaults.group)
     @Published var restTimer = RestTimer()
     @Published var unit: WeightUnit = .pounds
     @Published var servingUnit: ServingUnit = .grams

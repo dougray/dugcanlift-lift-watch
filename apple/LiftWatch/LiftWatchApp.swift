@@ -1,3 +1,4 @@
+import LiftKit
 import SwiftUI
 
 @main
@@ -17,6 +18,10 @@ struct LiftWatchApp: App {
     // `PhoneSyncTransport` instead of standing up a second `WCSession`
     // delegate (see `WorkoutSessionModel.enqueueOutdoorActivityFinished`).
     init() {
+        // Before anything reads the log. Copies the pre-App-Group log into
+        // the group suite; the old suite is left exactly as it was.
+        StandaloneFoodLogMigration.copyForward(from: .standard, to: SharedDefaults.group)
+
         let session = WorkoutSessionModel()
         _session = StateObject(wrappedValue: session)
         _outdoorRecorder = StateObject(wrappedValue: OutdoorActivityRecorder())
