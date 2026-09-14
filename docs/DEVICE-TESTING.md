@@ -94,3 +94,9 @@ complication layout, HealthKit reads and deep links all need hardware.
       entry — the App Group migration must not have lost any.
 - [ ] Install over a build that predates the App Group and confirm previously
       logged food is still on the export screen.
+- [ ] Grant the location prompt on launch; within a minute the Hi / Lo slot
+      shows today's forecast with a condition glyph. Deny it and it shows
+      dashes, never a made-up temperature.
+- [ ] The LIFT heart shows the latest sample and dims when that sample is
+      over ten minutes old. Compare against Apple's Heart Rate complication
+      in the same slot to see the lag for yourself before choosing.
