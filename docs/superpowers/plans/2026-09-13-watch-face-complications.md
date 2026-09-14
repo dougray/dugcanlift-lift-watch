@@ -23,7 +23,8 @@
 - **Every "expected: FAIL" step requires pasting the actual failure output into the commit or task report.** A test asserted to fail without its failure text quoted is not evidence. This plan's own code is a likely defect source — treat it as a draft to verify, not as correct.
 - Builds and tests run in the **foreground**. No backgrounded build commands.
 - LiftKit tests: `swift test --package-path LiftKit` run from `apple/`.
-- Watch build: `xcodebuild -project LiftWatch.xcodeproj -scheme LiftWatch -destination 'generic/platform=watchOS' build` run from `apple/`.
+- Watch build: `xcodebuild -project LiftWatch.xcodeproj -scheme LiftWatch -destination 'generic/platform=watchOS' CODE_SIGNING_ALLOWED=NO build` run from `apple/`.
+  `apple/README.md` documents this command without the flag and calls it "real hardware, no signing", but without it the build fails before compiling: `No profiles for 'com.dugcanlift.watch' were found`. The flag verifies compilation; signing is a device-install concern, not a build-verification one.
 
 ---
 
@@ -535,7 +536,7 @@ In `apple/LiftWatch/LiftWatchApp.swift`, as the first statement of `init()`:
 
 - [ ] **Step 8: Build the watch app**
 
-Run: `xcodebuild -project LiftWatch.xcodeproj -scheme LiftWatch -destination 'generic/platform=watchOS' build`
+Run: `xcodebuild -project LiftWatch.xcodeproj -scheme LiftWatch -destination 'generic/platform=watchOS' CODE_SIGNING_ALLOWED=NO build`
 Expected: BUILD SUCCEEDED.
 
 - [ ] **Step 9: Commit**
@@ -952,7 +953,7 @@ In `apple/LiftWatch/WorkoutSessionModel.swift`, add `import WidgetKit` at the to
 Run: `xcodegen generate`
 Expected: `Created project at .../LiftWatch.xcodeproj`
 
-Run: `xcodebuild -project LiftWatch.xcodeproj -scheme LiftWatch -destination 'generic/platform=watchOS' build`
+Run: `xcodebuild -project LiftWatch.xcodeproj -scheme LiftWatch -destination 'generic/platform=watchOS' CODE_SIGNING_ALLOWED=NO build`
 Expected: BUILD SUCCEEDED, with `LiftWatchWidgets.appex` in the build log.
 
 - [ ] **Step 11: Commit**
@@ -1317,7 +1318,7 @@ and to the `LiftWatchWidgets` target's `sources`:
 - [ ] **Step 9: Regenerate and build**
 
 Run: `xcodegen generate`
-Run: `xcodebuild -project LiftWatch.xcodeproj -scheme LiftWatch -destination 'generic/platform=watchOS' build`
+Run: `xcodebuild -project LiftWatch.xcodeproj -scheme LiftWatch -destination 'generic/platform=watchOS' CODE_SIGNING_ALLOWED=NO build`
 Expected: BUILD SUCCEEDED.
 
 - [ ] **Step 10: Commit**
@@ -1407,7 +1408,7 @@ In `apple/LiftWatch/RootView.swift`, inside `StartWorkoutView`'s last `Section`,
 
 - [ ] **Step 3: Build**
 
-Run: `xcodebuild -project LiftWatch.xcodeproj -scheme LiftWatch -destination 'generic/platform=watchOS' build`
+Run: `xcodebuild -project LiftWatch.xcodeproj -scheme LiftWatch -destination 'generic/platform=watchOS' CODE_SIGNING_ALLOWED=NO build`
 Expected: BUILD SUCCEEDED.
 
 - [ ] **Step 4: Commit**
@@ -1491,7 +1492,7 @@ struct RootView: View {
 - [ ] **Step 3: Regenerate and build**
 
 Run: `xcodegen generate`
-Run: `xcodebuild -project LiftWatch.xcodeproj -scheme LiftWatch -destination 'generic/platform=watchOS' build`
+Run: `xcodebuild -project LiftWatch.xcodeproj -scheme LiftWatch -destination 'generic/platform=watchOS' CODE_SIGNING_ALLOWED=NO build`
 Expected: BUILD SUCCEEDED.
 
 - [ ] **Step 4: Commit**
