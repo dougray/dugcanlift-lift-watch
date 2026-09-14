@@ -28,6 +28,8 @@ targets:
     dependencies:
       - package: LiftKit
         product: LiftKit
+      - target: LiftWatchWidgets
+        embed: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.dugcanlift.watch
@@ -108,3 +110,38 @@ targets:
       properties:
         com.apple.developer.healthkit: true
         com.apple.developer.healthkit.access: []
+        # The widget extension is a separate process with its own container.
+        # This suite is the only storage both it and the app can read.
+        com.apple.security.application-groups:
+          - group.com.dugcanlift.watch
+
+  LiftWatchWidgets:
+    # WidgetKit extension: complications only. No WatchConnectivity, and no
+    # HealthKit authorization prompts -- an extension cannot present one.
+    type: app-extension
+    platform: watchOS
+    sources:
+      - path: LiftWatchWidgets
+    dependencies:
+      - package: LiftKit
+        product: LiftKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.dugcanlift.watch.widgets
+        PRODUCT_NAME: LiftWatchWidgets
+        GENERATE_INFOPLIST_FILE: NO
+        TARGETED_DEVICE_FAMILY: "4"
+        SKIP_INSTALL: NO
+    info:
+      path: Config/LiftWatchWidgets-Info.plist
+      properties:
+        CFBundleDisplayName: LIFT
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: Config/LiftWatchWidgets.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.dugcanlift.watch
