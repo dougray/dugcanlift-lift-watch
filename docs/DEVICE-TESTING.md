@@ -63,3 +63,34 @@ cd android && JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/
   were on screen when the export opened, and asks first. Anything logged while
   the export was open must survive.
 - **Rotary input** on the amount screen, in both grams and ounces.
+
+## Watch face complications
+
+None of this can be verified in the simulator's watch face editor alone —
+complication layout, HealthKit reads and deep links all need hardware.
+
+- [ ] Both complications appear in the Infograph Modular editor's slot picker.
+- [ ] **Which family the top-left slot accepts** — `LiftSteps` declares both
+      `.accessoryCircular` and `.accessoryCorner` because this is unverified.
+      Note which one the face actually uses and delete the other.
+- [ ] The macros slot renders three lines without truncation at 41, 45 and
+      49 mm. The longest realistic string is a four-digit calorie total
+      against a four-digit goal.
+- [ ] Log a food on the watch; the macros complication updates without
+      reopening the app.
+- [ ] Set a goal below today's intake; the offending number turns red and the
+      others do not.
+- [ ] Check the red state on a tinted face — the numbers must still read
+      correctly when the colour is washed out.
+- [ ] Before granting the Health prompt, the steps slot shows a dash, never a
+      zero.
+- [ ] After granting it, the steps slot shows a count within a few minutes.
+- [ ] Tap the macros complication from the face: LIFT opens on the food log,
+      not on its start screen.
+- [ ] **Start a run, drop the wrist, then tap the macros complication.** The
+      food log opens over the run; dismissing it returns to a run that is
+      still recording.
+- [ ] Log food on the watch, then check the export screen still lists every
+      entry — the App Group migration must not have lost any.
+- [ ] Install over a build that predates the App Group and confirm previously
+      logged food is still on the export screen.
