@@ -11,12 +11,23 @@ face once it is configured.
 3. Set the slots:
    - top-left circular — LIFT, Steps
    - middle rectangular — LIFT, Macros
-   - bottom-left circular — Weather
-   - bottom-middle circular — Blood Oxygen
-   - bottom-right circular — Heart Rate
+   - bottom-left circular — LIFT, Hi / Lo
+   - bottom-middle circular — Blood Oxygen (Apple's)
+   - bottom-right circular — LIFT, Heart rate
 
-   Only the two LIFT slots come from this repo. The other three are Apple's
-   own complications, assigned by tapping them in the editor.
+   Four of the five slots are LIFT's. The time and date are drawn by the
+   face itself and cannot be replaced; Blood Oxygen stays Apple's because
+   only Apple's complication can take a reading.
+
+   The hi/lo comes from Open-Meteo, not WeatherKit: WeatherKit's capability
+   is refused to personal development teams and this beta is on free
+   signing by design. It needs one location fix, which the app takes on
+   launch — grant the location prompt or the slot shows dashes.
+
+   The LIFT heart is a filled glyph with the latest HealthKit sample inside.
+   It is not live the way Apple's is: it refreshes on the metered budget and
+   dims once the sample is over ten minutes old. If you want a live pulse,
+   put Apple's Heart Rate back in that slot.
 
    Blood Oxygen may not be available: US-sold watches shipped without the
    on-watch feature after the Masimo ruling in early 2024, and the 2025
@@ -26,7 +37,8 @@ face once it is configured.
 4. Open LIFT, tap Goals, and set the five targets. Until you do, the
    complications measure against LIFT iOS's defaults (1748 kcal, 160 g
    protein, 167 g carbs, 49 g fat, 10,000 steps).
-5. Grant the Health prompt on first launch, or the steps slot shows a dash.
+5. Grant the Health prompt on first launch, or the steps and heart slots
+   show a dash. Grant the location prompt too, or hi/lo shows dashes.
 
 ## Sharing it — broken on watchOS 26
 
