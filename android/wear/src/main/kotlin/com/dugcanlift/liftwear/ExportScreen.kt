@@ -27,10 +27,9 @@ import kotlin.math.abs
 internal const val CLEAR_LOG_TITLE = "Clear the log?"
 internal const val CLEAR_LOG_MESSAGE = "Only do this once the codes have been scanned. This cannot be undone."
 
-/** Home's distinct "Nothing logged yet" is for a log with zero entries ever; this is Export's own
- *  empty state, which can also mean "entries exist but all aged out" -- see [expiredCount] below. */
-internal fun exportEmptyMessage(expiredCount: Int): String =
-    if (expiredCount > 0) "Nothing left to export — $expiredCount logged over 60 days ago." else "Nothing logged yet."
+/** Since 2026-09-13 an empty export really does mean an empty log: age neither deletes nor hides,
+ *  so there is no longer an "entries exist but all aged out" state to distinguish. */
+internal fun exportEmptyMessage(): String = "Nothing logged yet."
 
 /** watchOS suppresses the "n / total" caption entirely for a single-code export (ExportFoodsView.swift
  *  `if codes.count > 1`), both because "1 / 1" tells the user nothing and because the caption's band
@@ -48,12 +47,9 @@ internal fun captionReserveFor(total: Int, captionReservePx: Int): Int = if (tot
     val shown = remember { log.entries }
     val codes = remember(shown) { StandaloneExport.codes(shown) }
     if (shown.isEmpty()) {
-        // Distinct from Home's "Nothing logged yet": entries can be in storage and still not be
-        // exportable, and telling a user who logged for weeks that they never logged anything is a
-        // worse lie than telling them their log expired.
-        val expired = remember { log.expiredCount }
-        val message = exportEmptyMessage(expired)
-        Box(Modifier.fillMaxSize().padding(horizontal = 16.dp), contentAlignment = Alignment.Center) { Text(message, color = DclColors.Muted) }
+        Box(Modifier.fillMaxSize().padding(horizontal = 16.dp), contentAlignment = Alignment.Center) {
+            Text(exportEmptyMessage(), color = DclColors.Muted)
+        }
         return
     }
     val density = LocalDensity.current

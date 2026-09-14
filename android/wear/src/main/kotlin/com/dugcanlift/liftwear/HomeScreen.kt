@@ -17,16 +17,15 @@ import com.dugcanlift.liftkit.StandaloneFoodLog
  */
 @Composable fun HomeScreen(log: StandaloneFoodLog, onLog: () -> Unit, onExport: () -> Unit) {
     var count by remember { mutableStateOf(log.entries.size) }
-    var expired by remember { mutableStateOf(log.expiredCount) }
     // A discarded quarantine is a second corruption that "first wins" refused to keep — surfaced
-    // here, next to `expired`, so a user or a future support path can tell something was dropped
-    // rather than the loss being invisible.
+    // here so a user or a future support path can tell something was dropped rather than the loss
+    // being invisible.
     var corrupted by remember { mutableStateOf(log.quarantineDiscardedCount) }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                count = log.entries.size; expired = log.expiredCount; corrupted = log.quarantineDiscardedCount
+                count = log.entries.size; corrupted = log.quarantineDiscardedCount
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -36,13 +35,11 @@ import com.dugcanlift.liftkit.StandaloneFoodLog
         ScalingLazyColumn(modifier = Modifier.fillMaxSize()) {
             item { ListHeader { Text("LIFT") } }
             item { Chip(onClick = onLog, label = { Text("Log food") }, colors = ChipDefaults.primaryChipColors(), modifier = Modifier.fillMaxWidth()) }
-            // "Nothing logged yet" now means exactly that: entries that aged past the 60-day window
-            // are still in storage, and saying a user who logged for weeks never logged anything is
-            // the empty state the spec asks to distinguish from Export's.
+            // "Nothing logged yet" means exactly that: since 2026-09-13 nothing is hidden by age,
+            // so a non-empty log always has something to export.
             item { Chip(onClick = onExport, label = { Text("Export logged foods") },
                         secondaryLabel = { Text(when {
                             count > 0 -> "$count to export"
-                            expired > 0 -> "$expired expired, none to export"
                             else -> "Nothing logged yet"
                         }) },
                         colors = ChipDefaults.secondaryChipColors(), modifier = Modifier.fillMaxWidth()) }
