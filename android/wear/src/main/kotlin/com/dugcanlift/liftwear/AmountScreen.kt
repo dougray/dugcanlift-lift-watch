@@ -27,13 +27,27 @@ private const val MIN_GRAMS = 5.0
 
 /**
  * The precision the screen shows, which is also the precision that gets logged. Grams display as
- * whole numbers, so grams are stored whole; ounces display to 0.01 oz, and 0.01 oz is 0.28 g, so
- * 0.1 g records the shown value with room to spare. Storing the raw conversion instead put
- * 92.135875 g in the record and on the wire behind a screen reading "92 g" — and `num()` only
- * shortens whole doubles, so every such entry cost ~9 characters of a 800-byte code rather than 2.
+ * whole numbers, so grams are stored whole; ounces display to 0.1 oz (watchOS's one decimal place,
+ * adopted 2026-09-13 along with its 0.5 oz step), and 0.1 oz is 2.8 g, so 0.1 g still records the
+ * shown value with room to spare. Storing the raw conversion instead put 92.135875 g in the record
+ * and on the wire behind a screen reading "92 g" — and `num()` only shortens whole doubles, so
+ * every such entry cost ~9 characters of an 800-byte code rather than 2. watchOS does store the
+ * raw conversion; that is the one place here we deliberately do not follow it, because the QR code
+ * is Wear's only way off the watch and watchOS has a phone to sync to.
  */
 internal fun amountShown(unit: ServingUnit, amount: Double): Double =
-    if (unit == ServingUnit.GRAMS) round(amount) else round(amount * 100.0) / 100.0
+    if (unit == ServingUnit.GRAMS) round(amount) else round(amount * 10.0) / 10.0
+
+/**
+ * What the big number reads: whole numbers bare, ounces otherwise to one decimal. Transcribed from
+ * watchOS's `FoodAmountEntryView.formattedAmount`, which takes it in turn from the phone app's
+ * `FoodEntryDisplay`. With a 0.5 oz step every reachable value is already .0 or .5, so the second
+ * decimal place this used to print was never anything but a zero.
+ */
+internal fun amountLabel(unit: ServingUnit, amount: Double): String =
+    if (unit == ServingUnit.GRAMS) amount.roundToInt().toString()
+    else if (amount == round(amount)) amount.roundToInt().toString()
+    else "%.1f".format(amount)
 
 /** The grams to record for an amount the user set in [unit]. Never finer than [amountShown]. */
 internal fun gramsFor(unit: ServingUnit, amount: Double): Double =
@@ -55,9 +69,11 @@ internal fun clampedAmount(unit: ServingUnit, requested: Double): Pair<Double, D
 /** Grams (or ounces) via the rotary input and +/-; kcal for the chosen amount updates live. */
 @Composable fun AmountScreen(draft: Draft, onNext: () -> Unit) {
     val food = draft.food ?: return
-    var unit by remember { mutableStateOf(ServingUnit.GRAMS) }
-    var amount by remember { mutableStateOf(unit.fromGrams(draft.grams)) }
-    val step = if (unit == ServingUnit.GRAMS) 5.0 else 0.25
+    // Not screen-local: the chosen unit lives on the draft so it survives logging a food, the way
+    // watchOS's `session.servingUnit` does.
+    val unit = draft.unit
+    var amount by remember(unit) { mutableStateOf(unit.fromGrams(draft.grams)) }
+    val step = if (unit == ServingUnit.GRAMS) 5.0 else 0.5
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { focus.requestFocus() }
     fun set(a: Double) {
@@ -69,9 +85,10 @@ internal fun clampedAmount(unit: ServingUnit, requested: Double): Pair<Double, D
     // new display's precision, which can only coarsen (0.1 g -> whole g) and never invents precision,
     // so g -> oz -> g returns the same number the user started with.
     fun toggleUnit() {
-        unit = if (unit == ServingUnit.GRAMS) ServingUnit.OUNCES else ServingUnit.GRAMS
-        draft.grams = gramsFor(unit, unit.fromGrams(draft.grams))
-        amount = unit.fromGrams(draft.grams)
+        val next = if (unit == ServingUnit.GRAMS) ServingUnit.OUNCES else ServingUnit.GRAMS
+        draft.unit = next
+        draft.grams = gramsFor(next, next.fromGrams(draft.grams))
+        amount = next.fromGrams(draft.grams)
     }
     Scaffold(timeText = { TimeText() }) {
         Column(Modifier.fillMaxSize().padding(12.dp)
@@ -82,7 +99,7 @@ internal fun clampedAmount(unit: ServingUnit, requested: Double): Pair<Double, D
             // narrower than the full diameter, so long USDA names need more inset than a square screen would.
             Text(food.name, maxLines = 2, overflow = TextOverflow.Ellipsis, color = DclColors.Muted,
                  modifier = Modifier.padding(horizontal = 20.dp))
-            Text("${if (unit == ServingUnit.GRAMS) amount.roundToInt().toString() else "%.2f".format(amount)} ${if (unit == ServingUnit.GRAMS) "g" else "oz"}", style = MaterialTheme.typography.display2)
+            Text("${amountLabel(unit, amount)} ${if (unit == ServingUnit.GRAMS) "g" else "oz"}", style = MaterialTheme.typography.display2)
             Text("${(food.kcal * draft.grams / 100.0).roundToInt()} kcal", color = DclColors.Text)
             Row {
                 CompactButton(onClick = { set(amount - step) }) { Text("−") }
