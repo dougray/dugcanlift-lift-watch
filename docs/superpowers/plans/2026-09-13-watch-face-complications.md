@@ -34,7 +34,7 @@
 - Test: `apple/LiftKit/Tests/LiftKitTests/TodayTotalsTests.swift`
 
 **Interfaces:**
-- Consumes: `LoggedFood`, `WatchFood` (existing, `StandaloneFoodLog.swift` / `WatchFood.swift`)
+- Consumes: `LoggedFood`, `WatchFood` (existing, `StandaloneFoodLog.swift` / `WatchFood.swift`). Note `StandaloneFoodLog.entries` returns the entire retained log since 6890170 retired the 60-day window — this fold is the only thing narrowing it to today.
 - Produces: `NutritionTotals(kcal:protein:carbs:fat:)`, `NutritionTotals.zero`, `TodayTotals.totals(from:on:calendar:) -> NutritionTotals`
 
 - [ ] **Step 1: Write the failing test**
@@ -160,8 +160,7 @@ public enum TodayTotals {
     /// Day membership is `Calendar.isDate(_:inSameDayAs:)` — never arithmetic
     /// on a timestamp. A UTC boundary misfiles an evening log as tomorrow,
     /// and 86,400-second arithmetic repeats or skips a day across a DST
-    /// change. `StandaloneFoodLog.live` documents the same reasoning for its
-    /// own 60-day window.
+    /// change.
     public static func totals(from entries: [LoggedFood],
                               on reference: Date = Date(),
                               calendar: Calendar = .current) -> NutritionTotals {
