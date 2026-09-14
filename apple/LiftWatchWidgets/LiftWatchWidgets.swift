@@ -5,5 +5,6 @@ import WidgetKit
 struct LiftWatchWidgets: WidgetBundle {
     var body: some Widget {
         LiftMacrosWidget()
+        LiftStepsWidget()
     }
 }
