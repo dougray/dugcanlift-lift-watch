@@ -106,6 +106,13 @@ targets:
         # on first use of a location API, driven off this Info.plist key.
         NSLocationWhenInUseUsageDescription: >-
           LIFT uses your location to record the route of a run or hike.
+        # The complications' `widgetURL`. Without a registered scheme the tap
+        # opens the app at whatever it was last showing and `onOpenURL` never
+        # fires.
+        CFBundleURLTypes:
+          - CFBundleURLName: com.dugcanlift.watch
+            CFBundleURLSchemes:
+              - liftwatch
     entitlements:
       path: Config/LiftWatch.entitlements
       properties:

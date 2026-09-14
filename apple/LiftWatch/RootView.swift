@@ -4,22 +4,39 @@ import SwiftUI
 struct RootView: View {
     @EnvironmentObject private var session: WorkoutSessionModel
     @EnvironmentObject private var outdoorRecorder: OutdoorActivityRecorder
+    @State private var path: [WatchRoute] = []
 
     var body: some View {
-        NavigationStack {
-            // An in-progress outdoor recording takes priority: once
-            // `start(type:)` is called, `activity` stays non-nil (even right
-            // after `finish()`, until `OutdoorActivityView` resets it) so
-            // this is the state that should own the screen.
-            if outdoorRecorder.activity != nil {
-                OutdoorActivityView()
-            } else if session.draft == nil {
-                StartWorkoutView()
-            } else {
-                WorkoutView()
+        NavigationStack(path: $path) {
+            Group {
+                // An in-progress outdoor recording takes priority: once
+                // `start(type:)` is called, `activity` stays non-nil (even right
+                // after `finish()`, until `OutdoorActivityView` resets it) so
+                // this is the state that should own the screen.
+                if outdoorRecorder.activity != nil {
+                    OutdoorActivityView()
+                } else if session.draft == nil {
+                    StartWorkoutView()
+                } else {
+                    WorkoutView()
+                }
+            }
+            .navigationDestination(for: WatchRoute.self) { route in
+                switch route {
+                case .foodLog:
+                    RecentFoodsListView()
+                }
             }
         }
         .task { await StepsAuthorization.request() }
+        .onOpenURL { url in
+            guard let route = WatchRoute(url: url) else { return }
+            // Pushed, never substituted. A live workout or an active run keeps
+            // owning the root of the stack and keeps recording; dismissing the
+            // log returns to it. Replacing the root here would leave a running
+            // recording behind a screen the user has to find their way out of.
+            path = [route]
+        }
     }
 }
 
