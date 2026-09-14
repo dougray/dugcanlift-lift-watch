@@ -28,7 +28,7 @@ class StandaloneFoodLogRecoveryTest {
         storage.write(json.encodeToString(JsonObject.serializer(),
             storedBlob(unreadable = JsonArray(listOf(recovered, stillBad)))).toByteArray())
 
-        val log = StandaloneFoodLog(storage, { now }, chicago)
+        val log = StandaloneFoodLog(storage)
         assertEquals("a now-decodable carried entry must rejoin the live log",
             listOf("Oats"), log.entries.map { it.food.name })
         assertEquals("the still-undecodable entry must remain carried, not counted as live",
@@ -49,7 +49,7 @@ class StandaloneFoodLogRecoveryTest {
         storage.write(json.encodeToString(JsonObject.serializer(),
             storedBlob(unreadable = JsonArray(junk))).toByteArray())
 
-        val log = StandaloneFoodLog(storage, { now }, chicago)
+        val log = StandaloneFoodLog(storage)
         assertEquals(StandaloneFoodLog.MAX_UNREADABLE_ENTRIES, log.unreadableCount)
         assertEquals("the overflow must be counted rather than silently discarded", overflow, log.unreadableDroppedCount)
 
@@ -76,7 +76,7 @@ class StandaloneFoodLogRecoveryTest {
     @Test fun `two undecodable blobs across two writes both surface via the log's own count`() {
         val now = at("2026-09-13T12:00:00-05:00")
         val storage = InMemoryLogStorage().apply { write("<<not json at all>>".toByteArray()) }
-        val log = StandaloneFoodLog(storage, { now }, chicago)
+        val log = StandaloneFoodLog(storage)
         log.append(entry("Oats", now))   // quarantines the first corrupt blob
         assertEquals(0, log.quarantineDiscardedCount)
 

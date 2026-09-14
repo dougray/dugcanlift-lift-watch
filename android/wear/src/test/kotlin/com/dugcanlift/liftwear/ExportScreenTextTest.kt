@@ -15,15 +15,14 @@ import org.junit.Test
  * pluralisation text logic.
  */
 class ExportScreenTextTest {
-    // M9: Wear's ordinary empty state used to read "Nothing to export.", diverging word-for-word from
-    // watchOS's "Nothing logged yet." for the identical state. The expired-log variant is Wear-only
-    // (watchOS deletes on write instead of hiding on read, see audit #2/#3) and must be kept.
+    // M9: Wear's ordinary empty state used to read "Nothing to export.", diverging word-for-word
+    // from watchOS's "Nothing logged yet." for the identical state.
+    //
+    // The aged-out variant is gone with the window it described (settled 2026-09-13): nothing is
+    // hidden by age on either watch, so an empty export means an empty log and there is no second
+    // state left to word.
     @Test fun `empty state matches watchOS when nothing was ever logged`() {
-        assertEquals("Nothing logged yet.", exportEmptyMessage(expiredCount = 0))
-    }
-
-    @Test fun `the aged-out variant is retained and takes priority over the base message`() {
-        assertEquals("Nothing left to export — 9 logged over 60 days ago.", exportEmptyMessage(expiredCount = 9))
+        assertEquals("Nothing logged yet.", exportEmptyMessage())
     }
 
     // M10: watchOS suppresses the "n / total" caption for a single code (ExportFoodsView.swift:59).
