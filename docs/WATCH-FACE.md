@@ -12,7 +12,17 @@ face once it is configured.
    - top-left circular — LIFT, Steps
    - middle rectangular — LIFT, Macros
    - bottom-left circular — Weather
+   - bottom-middle circular — Blood Oxygen
    - bottom-right circular — Heart Rate
+
+   Only the two LIFT slots come from this repo. The other three are Apple's
+   own complications, assigned by tapping them in the editor.
+
+   Blood Oxygen may not be available: US-sold watches shipped without the
+   on-watch feature after the Masimo ruling in early 2024, and the 2025
+   replacement measures on the iPhone. If the complication is not offered,
+   the slot stays empty — a LIFT complication could show the most recent
+   HealthKit reading instead, but it could never take one.
 4. Open LIFT, tap Goals, and set the five targets. Until you do, the
    complications measure against LIFT iOS's defaults (1748 kcal, 160 g
    protein, 167 g carbs, 49 g fat, 10,000 steps).
@@ -29,7 +39,17 @@ empty slots. This is a limitation of distribution, not of the face.
 
 ## What is live and what is not
 
-The time, date, heart rate and weather are Apple's and update continuously.
+The time, date, heart rate, weather and blood oxygen are Apple's. Heart rate
+and weather update on their own; blood oxygen is a spot reading, so that
+number is as old as the last measurement.
+
+The date line and the AM/PM treatment are drawn by the face itself, not by a
+complication, so neither can be reformatted from here.
+
+The macros slot leads with calories consumed, a fill bar, and what is left
+for the day, over three macro bars. The goal digits are deliberately absent:
+the fill carries them, which is what buys the room for the bars. Exact
+targets live on the Goals screen.
 
 The macros are current the moment you log food on the watch, because the app
 reloads that complication on every write. Nothing else moves them: food
