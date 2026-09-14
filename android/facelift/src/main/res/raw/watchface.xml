@@ -15,18 +15,30 @@
 
         <Group x="0" y="0" width="450" height="450" name="header">
 
-            <PartText x="60" y="70" width="150" height="40">
-                <Text align="START">
-                    <Font family="SYNC_TO_DEVICE" size="30" weight="BOLD" color="#ffd85a30">
-                        <Template>%s<Parameter expression="[STEP_COUNT]" /></Template>
-                    </Font>
-                </Text>
-            </PartText>
+            <PartDraw x="42" y="52" width="104" height="104">
+                <Arc centerX="52" centerY="52" width="96" height="96"
+                     startAngle="0" endAngle="360" direction="CLOCKWISE">
+                    <Stroke thickness="7" color="#ff4a1b0c" cap="ROUND" />
+                </Arc>
+            </PartDraw>
 
-            <PartText x="60" y="104" width="150" height="26">
-                <Text align="START">
-                    <Font family="SYNC_TO_DEVICE" size="18" color="#ff888780">
-                        <Template>steps</Template>
+            <PartDraw x="42" y="52" width="104" height="104">
+                <Arc centerX="52" centerY="52" width="96" height="96"
+                     startAngle="0" direction="CLOCKWISE">
+                    <Transform target="endAngle"
+                               value="clamp([STEP_PERCENT] * 3.6, 0, 360)" />
+                    <Stroke thickness="7" color="#ffd85a30" cap="ROUND" />
+                </Arc>
+            </PartDraw>
+
+            <PartImage x="78" y="68" width="32" height="32">
+                <Image resource="@drawable/ic_footprint" />
+            </PartImage>
+
+            <PartText x="44" y="100" width="100" height="34">
+                <Text align="CENTER">
+                    <Font family="SYNC_TO_DEVICE" size="26" weight="BOLD" color="#ffffffff">
+                        <Template>%s<Parameter expression="[STEP_COUNT]" /></Template>
                     </Font>
                 </Text>
             </PartText>
@@ -141,10 +153,14 @@
                 </Text>
             </PartText>
 
+            <PartImage x="288" y="338" width="54" height="54">
+                <Image resource="@drawable/ic_heart" />
+            </PartImage>
+
             <PartText x="270" y="350" width="90" height="32">
                 <Text align="CENTER">
-                    <Font family="SYNC_TO_DEVICE" size="24" weight="BOLD" color="#ffe24b4a">
-                        <Template>%s<Parameter expression="[HEART_RATE]" /></Template>
+                    <Font family="SYNC_TO_DEVICE" size="22" weight="BOLD" color="#ffffffff">
+                        <Template>%.0f<Parameter expression="[HEART_RATE]" /></Template>
                     </Font>
                 </Text>
             </PartText>
