@@ -32,11 +32,11 @@ class StandaloneFoodLogLossTest {
         val now = at("2026-09-13T12:00:00-05:00")
         val storage = InMemoryLogStorage()
         val names = listOf("Oats", "Chicken", "Rice", "Black beans", "Kale")
-        val log = StandaloneFoodLog(storage, { now }, chicago)
+        val log = StandaloneFoodLog(storage)
         names.forEachIndexed { i, n -> log.append(entry(n, now - 500 + i)) }
 
         storage.write(dropKeyFromEveryEntry(storage.read()!!, "grams"))
-        val reopened = StandaloneFoodLog(storage, { now }, chicago)
+        val reopened = StandaloneFoodLog(storage)
         assertEquals("undecodable entries must not read as live entries", 0, reopened.entries.size)
 
         reopened.append(entry("Lentils", now - 10))
@@ -49,7 +49,7 @@ class StandaloneFoodLogLossTest {
     @Test fun `a blob that is not JSON at all is set aside before a fresh log is written`() {
         val now = at("2026-09-13T12:00:00-05:00")
         val storage = InMemoryLogStorage().apply { write("<<not json at all>>".toByteArray()) }
-        val log = StandaloneFoodLog(storage, { now }, chicago)
+        val log = StandaloneFoodLog(storage)
         log.append(entry("Oats", now - 10))
         assertEquals("the undecodable bytes were destroyed", "<<not json at all>>", String(storage.quarantined ?: ByteArray(0)))
         assertEquals(1, log.entries.size)
@@ -60,7 +60,7 @@ class StandaloneFoodLogLossTest {
         // to the real date, and the user logs dinner. Breakfast and lunch were logged minutes ago.
         val storage = InMemoryLogStorage()
         var now = at("2016-01-02T08:00:00-06:00")
-        val log = StandaloneFoodLog(storage, { now }, chicago)
+        val log = StandaloneFoodLog(storage)
         log.append(entry("Oats", now))
         log.append(entry("Chicken", now + 3600))
         assertEquals(2, log.entries.size)
@@ -72,24 +72,26 @@ class StandaloneFoodLogLossTest {
         listOf("Oats", "Chicken", "Lentils").forEach {
             assertTrue("lost `$it` - retention trimming acted on a clock correction", left.contains(it))
         }
-        assertEquals("the stale-clock entries are retained, not exportable", 2, log.expiredCount)
+        // Settled 2026-09-13: retained *and* exportable. Nothing is hidden by age.
+        assertEquals("the stale-clock entries are exported like any other", 3, log.entries.size)
     }
 
     @Test fun `an entry stamped in the future is not treated as expired`() {
         val now = at("2026-09-13T12:00:00-05:00")
-        val log = StandaloneFoodLog(InMemoryLogStorage(), { now }, chicago)
+        val log = StandaloneFoodLog(InMemoryLogStorage())
         log.append(entry("Oats", now + 365L * 86_400))
         assertEquals(1, log.entries.size)
     }
 
-    @Test fun `a clock behind the stored log suspends the age window entirely`() {
+    /** Was `a clock behind the stored log suspends the age window entirely`. There is no window to
+     *  suspend now, and no clock read anywhere in the store — the guarantee the old test bought
+     *  with two clock guards is now structural. */
+    @Test fun `no reading of the clock can change what the log returns`() {
         val storage = InMemoryLogStorage()
-        var now = at("2026-09-13T12:00:00-05:00")
-        val log = StandaloneFoodLog(storage, { now }, chicago)
-        log.append(entry("Oats", at("2026-01-01T12:00:00-06:00")))   // well past 60 days at `now`
-        log.append(entry("Chicken", now))
-        assertEquals(1, log.entries.size)
-        now = at("2020-01-01T12:00:00-06:00")                        // the RTC falls behind the data
-        assertEquals("with the clock behind the log, nothing may be judged expired", 2, log.entries.size)
+        val log = StandaloneFoodLog(storage)
+        log.append(entry("Oats", at("2026-01-01T12:00:00-06:00")))
+        log.append(entry("Chicken", at("2026-09-13T12:00:00-05:00")))
+        assertEquals(2, log.entries.size)
+        assertEquals("a reopened log sees the same entries", 2, StandaloneFoodLog(storage).entries.size)
     }
 }
