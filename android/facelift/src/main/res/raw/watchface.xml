@@ -1,0 +1,237 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  face-lift. 450x450 round.
+
+  Laid out for a circle, not the square in the reference sketch: the corners
+  of a round display are not drawable, so the step and heart readouts sit
+  inboard of where they would on an Apple Watch.
+-->
+<WatchFace width="450" height="450">
+
+    <Metadata key="CLOCK_TYPE" value="DIGITAL" />
+    <Metadata key="PREVIEW_TIME" value="10:08:32" />
+
+    <Scene backgroundColor="#ff000000">
+
+        <ComplicationSlot slotId="1" x="60" y="190" width="330" height="66"
+                              supportedTypes="RANGED_VALUE" displayName="Calories">
+                <Bounding x="0" y="0" width="330" height="66" />
+                
+
+                <Complication type="RANGED_VALUE">
+                <PartText x="0" y="6" width="200" height="46">
+                    <Text align="START">
+                        <Font family="SYNC_TO_DEVICE" size="38" weight="BOLD" color="#ffffffff">
+                            <Template><![CDATA[%s]]><Parameter expression="[COMPLICATION.TEXT]" /></Template>
+                        </Font>
+                    </Text>
+                </PartText>
+
+                <PartText x="170" y="22" width="160" height="26">
+                    <Text align="END">
+                        <Font family="SYNC_TO_DEVICE" size="18" color="#ff888780">
+                            <Template><![CDATA[of %.0f]]><Parameter expression="[COMPLICATION.RANGED_VALUE_MAX]" /></Template>
+                        </Font>
+                    </Text>
+                </PartText>
+
+                <PartDraw x="0" y="56" width="330" height="8">
+                    <Rectangle x="0" y="0" width="330" height="8">
+                        <Fill color="#ff2c2c2a" />
+                    </Rectangle>
+                </PartDraw>
+
+                <PartDraw x="0" y="56" width="330" height="8">
+                    <Rectangle x="0" y="0" width="330" height="8">
+                        <Transform target="width"
+                                   value="330 * [COMPLICATION.RANGED_VALUE_VALUE] / [COMPLICATION.RANGED_VALUE_MAX]" />
+                        <Fill color="#ff5dcaa5" />
+                    </Rectangle>
+                </PartDraw>
+            </Complication>
+
+                <DefaultProviderPolicy
+                    primaryProvider="com.dugcanlift.liftwear/com.dugcanlift.liftwear.MacrosComplicationService"
+                    primaryProviderType="RANGED_VALUE" />
+            </ComplicationSlot>
+
+        <ComplicationSlot slotId="2" x="60" y="268" width="100" height="40"
+                          supportedTypes="RANGED_VALUE" displayName="Macro">
+            <Bounding x="0" y="0" width="100" height="40" />
+
+            <Complication type="RANGED_VALUE">
+                <PartDraw x="0" y="0" width="100" height="5">
+                    <Rectangle x="0" y="0" width="100" height="5">
+                        <Fill color="#ff2c2c2a" />
+                    </Rectangle>
+                </PartDraw>
+
+                <PartDraw x="0" y="0" width="100" height="5">
+                    <Rectangle x="0" y="0" width="100" height="5">
+                        <Transform target="width"
+                                   value="100 * [COMPLICATION.RANGED_VALUE_VALUE] / [COMPLICATION.RANGED_VALUE_MAX]" />
+                        <Fill color="#ff85b7eb" />
+                    </Rectangle>
+                </PartDraw>
+
+                <PartText x="0" y="8" width="100" height="24">
+                    <Text align="START">
+                        <Font family="SYNC_TO_DEVICE" size="15" color="#ff888780">
+                            <Template><![CDATA[%s]]><Parameter expression="[COMPLICATION.TEXT]" /></Template>
+                        </Font>
+                    </Text>
+                </PartText>
+            </Complication>
+
+            <DefaultProviderPolicy
+                primaryProvider="com.dugcanlift.liftwear/com.dugcanlift.liftwear.ProteinComplicationService"
+                primaryProviderType="RANGED_VALUE" />
+        </ComplicationSlot>
+
+        <ComplicationSlot slotId="3" x="175" y="268" width="100" height="40"
+                          supportedTypes="RANGED_VALUE" displayName="Macro">
+            <Bounding x="0" y="0" width="100" height="40" />
+
+            <Complication type="RANGED_VALUE">
+                <PartDraw x="0" y="0" width="100" height="5">
+                    <Rectangle x="0" y="0" width="100" height="5">
+                        <Fill color="#ff2c2c2a" />
+                    </Rectangle>
+                </PartDraw>
+
+                <PartDraw x="0" y="0" width="100" height="5">
+                    <Rectangle x="0" y="0" width="100" height="5">
+                        <Transform target="width"
+                                   value="100 * [COMPLICATION.RANGED_VALUE_VALUE] / [COMPLICATION.RANGED_VALUE_MAX]" />
+                        <Fill color="#ffef9f27" />
+                    </Rectangle>
+                </PartDraw>
+
+                <PartText x="0" y="8" width="100" height="24">
+                    <Text align="START">
+                        <Font family="SYNC_TO_DEVICE" size="15" color="#ff888780">
+                            <Template><![CDATA[%s]]><Parameter expression="[COMPLICATION.TEXT]" /></Template>
+                        </Font>
+                    </Text>
+                </PartText>
+            </Complication>
+
+            <DefaultProviderPolicy
+                primaryProvider="com.dugcanlift.liftwear/com.dugcanlift.liftwear.CarbsComplicationService"
+                primaryProviderType="RANGED_VALUE" />
+        </ComplicationSlot>
+
+        <ComplicationSlot slotId="4" x="290" y="268" width="100" height="40"
+                          supportedTypes="RANGED_VALUE" displayName="Macro">
+            <Bounding x="0" y="0" width="100" height="40" />
+
+            <Complication type="RANGED_VALUE">
+                <PartDraw x="0" y="0" width="100" height="5">
+                    <Rectangle x="0" y="0" width="100" height="5">
+                        <Fill color="#ff2c2c2a" />
+                    </Rectangle>
+                </PartDraw>
+
+                <PartDraw x="0" y="0" width="100" height="5">
+                    <Rectangle x="0" y="0" width="100" height="5">
+                        <Transform target="width"
+                                   value="100 * [COMPLICATION.RANGED_VALUE_VALUE] / [COMPLICATION.RANGED_VALUE_MAX]" />
+                        <Fill color="#ffed93b1" />
+                    </Rectangle>
+                </PartDraw>
+
+                <PartText x="0" y="8" width="100" height="24">
+                    <Text align="START">
+                        <Font family="SYNC_TO_DEVICE" size="15" color="#ff888780">
+                            <Template><![CDATA[%s]]><Parameter expression="[COMPLICATION.TEXT]" /></Template>
+                        </Font>
+                    </Text>
+                </PartText>
+            </Complication>
+
+            <DefaultProviderPolicy
+                primaryProvider="com.dugcanlift.liftwear/com.dugcanlift.liftwear.FatComplicationService"
+                primaryProviderType="RANGED_VALUE" />
+        </ComplicationSlot>
+
+
+
+        <Group x="0" y="0" width="450" height="450" name="header">
+
+            <PartDraw x="42" y="52" width="104" height="104">
+                <Arc centerX="52" centerY="52" width="96" height="96"
+                     startAngle="0" endAngle="360" direction="CLOCKWISE">
+                    <Stroke thickness="7" color="#ff4a1b0c" cap="ROUND" />
+                </Arc>
+            </PartDraw>
+
+            <PartDraw x="42" y="52" width="104" height="104">
+                <Arc centerX="52" centerY="52" width="96" height="96"
+                     startAngle="0" direction="CLOCKWISE">
+                    <Transform target="endAngle"
+                               value="clamp([STEP_PERCENT] * 3.6, 0, 360)" />
+                    <Stroke thickness="7" color="#ffd85a30" cap="ROUND" />
+                </Arc>
+            </PartDraw>
+
+            <PartImage x="78" y="68" width="32" height="32">
+                <Image resource="@drawable/ic_footprint" />
+            </PartImage>
+
+            <PartText x="44" y="100" width="100" height="34">
+                <Text align="CENTER">
+                    <Font family="SYNC_TO_DEVICE" size="26" weight="BOLD" color="#ffffffff">
+                        <Template>%s<Parameter expression="[STEP_COUNT]" /></Template>
+                    </Font>
+                </Text>
+            </PartText>
+
+            <PartText x="240" y="66" width="150" height="28">
+                <Text align="END">
+                    <Font family="SYNC_TO_DEVICE" size="20" weight="BOLD" color="#ff5dcaa5">
+                        <Template>%s %s<Parameter expression="[DAY_OF_WEEK_S]" /><Parameter expression="[DAY]" /></Template>
+                    </Font>
+                </Text>
+            </PartText>
+        </Group>
+
+        <DigitalClock x="240" y="92" width="150" height="70">
+            <TimeText x="0" y="0" width="150" height="70" format="hh:mm" align="END">
+                <Font family="SYNC_TO_DEVICE" size="56" color="#ffffffff" />
+            </TimeText>
+        </DigitalClock>
+
+        
+
+        <Group x="0" y="0" width="450" height="450" name="vitals">
+
+            <PartText x="90" y="350" width="90" height="32">
+                <Text align="CENTER">
+                    <Font family="SYNC_TO_DEVICE" size="24" weight="BOLD" color="#ff85b7eb">
+                        <Template>90°</Template>
+                    </Font>
+                </Text>
+            </PartText>
+
+            <PartImage x="288" y="338" width="54" height="54">
+                <Image resource="@drawable/ic_heart" />
+            </PartImage>
+
+            <PartText x="270" y="350" width="90" height="32">
+                <Text align="CENTER">
+                    <Font family="SYNC_TO_DEVICE" size="22" weight="BOLD" color="#ffffffff">
+                        <Template>%.0f<Parameter expression="[HEART_RATE]" /></Template>
+                    </Font>
+                </Text>
+            </PartText>
+
+            <PartText x="180" y="352" width="90" height="28">
+                <Text align="CENTER">
+                    <Font family="SYNC_TO_DEVICE" size="20" color="#ff5dcaa5">
+                        <Template>98%%</Template>
+                    </Font>
+                </Text>
+            </PartText>
+        </Group>
+    </Scene>
+</WatchFace>
