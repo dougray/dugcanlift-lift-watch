@@ -53,17 +53,17 @@ jobs:
           working-directory: android
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          # Leave the app installed so its screenshots can be pulled afterwards.
-          script: ./gradlew :wear:connectedDebugAndroidTest -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true
-
-      # The screenshots the test decoded (or failed to), plus the instrumentation
-      # report. Internal storage, hence run-as: the Wear images have no sdcard.
-      - name: Pull the screenshots off the emulator
-        if: always()
-        run: |
-          mkdir -p qr-out
-          adb exec-out run-as com.dugcanlift.liftwear.debug tar -C files -c qr-test | tar -x -C qr-out || true
-          ls -la qr-out/qr-test || true
+          # The screenshots the test decoded (or failed to) are pulled here, inside
+          # this step, because the action shuts the emulator down when the step ends.
+          # Internal storage, hence run-as: the Wear images have no sdcard. The app
+          # is left installed so run-as still resolves it; the test's exit code is
+          # preserved through the pull.
+          script: |
+            ./gradlew :wear:connectedDebugAndroidTest -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true; rc=$?
+            mkdir -p qr-out
+            adb exec-out run-as com.dugcanlift.liftwear.debug tar -C files -c qr-test | tar -x -C qr-out || true
+            ls -la qr-out/qr-test || true
+            exit $rc
 
       - name: Upload screenshots and report
         if: always()
