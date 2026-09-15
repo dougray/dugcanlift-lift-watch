@@ -23,6 +23,7 @@ android {
         targetSdk = 37
         versionCode = 2
         versionName = "1.0.1"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     signingConfigs {
@@ -77,4 +78,12 @@ dependencies {
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.test.core)
     testImplementation(libs.kotlinx.coroutines.test)
+    // On-device test: renders the export QR on a round emulator, screenshots the display, masks it
+    // to the circle a bezel would show, and decodes it (.github/workflows/qr-nightly.yml).
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    androidTestImplementation(libs.kotlinx.serialization.json) // to read the decoded envelope
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
 }
