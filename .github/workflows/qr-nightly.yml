@@ -1,0 +1,77 @@
+name: Wear QR on a round display
+
+# The one bug the unit tests could not see: a QR sized to the full square of
+# a round watch has its finder patterns under the bezel, and no scanner can
+# read it. This boots a round Wear OS emulator, renders the export screen,
+# screenshots the display, masks everything outside the circle a bezel
+# would hide, and decodes what is left with zxing. Nightly rather than per
+# PR because the emulator boot is the slow part.
+on:
+  schedule:
+    - cron: "17 9 * * *"   # 04:17 America/Chicago
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: qr-nightly
+  cancel-in-progress: true
+
+jobs:
+  decode:
+    name: Render, screenshot, decode
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+
+      # The hosted runners have KVM; the emulator is unusably slow without it.
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run the on-device test on a round Wear OS emulator
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 34
+          target: android-wear
+          arch: x86_64
+          profile: wearos_large_round
+          working-directory: android
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          # Leave the app installed so its screenshots can be pulled afterwards.
+          script: ./gradlew :wear:connectedDebugAndroidTest -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true
+
+      # The screenshots the test decoded (or failed to), plus the instrumentation
+      # report. Internal storage, hence run-as: the Wear images have no sdcard.
+      - name: Pull the screenshots off the emulator
+        if: always()
+        run: |
+          mkdir -p qr-out
+          adb exec-out run-as com.dugcanlift.liftwear.debug tar -C files -c qr-test | tar -x -C qr-out || true
+          ls -la qr-out/qr-test || true
+
+      - name: Upload screenshots and report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wear-qr-screenshots
+          path: |
+            android/qr-out
+            android/wear/build/reports/androidTests/connected
+          if-no-files-found: ignore
+          retention-days: 14
