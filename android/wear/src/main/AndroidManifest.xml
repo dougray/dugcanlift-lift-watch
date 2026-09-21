@@ -1,5 +1,23 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-feature android:name="android.hardware.type.watch" />
+    <!-- Not required: a watch without BLE still logs food and exports by QR, which is the whole
+         app minus the phone link. -->
+    <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
+
+    <!-- LIFT Link (docs/LINK-PROTOCOL.md). The watch is the peripheral: it advertises and accepts
+         a connection, and it never scans, so BLUETOOTH_SCAN is deliberately absent. With no scan
+         permission there is no location question to answer either - neverForLocation belongs on
+         the phone, which does scan.
+
+         There is still no INTERNET permission and no Play Services here, and there must not be:
+         that constraint is why this link exists at all rather than the Wearable Data Layer. -->
+    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <!-- Android 11 and older, where the two above do not exist. minSdk is 30, so this is one
+         API level, and maxSdkVersion keeps them off every device that has the modern pair. -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+
     <application
         android:label="LIFT"
         android:theme="@android:style/Theme.DeviceDefault"
