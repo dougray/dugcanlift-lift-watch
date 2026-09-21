@@ -1,6 +1,10 @@
 import Foundation
 import LiftKit
 import WatchConnectivity
+import os
+
+/// SPIKE (spike/watch-companion): delivery evidence.
+let spikeLog = Logger(subsystem: "com.dugcanlift.spike", category: "watch")
 
 /// WatchConnectivity plumbing, kept away from the domain so the reconciliation
 /// rules stay testable without a paired device.
@@ -37,6 +41,7 @@ final class PhoneSyncTransport: NSObject {
     func send(_ envelope: SyncEnvelope) {
         guard let session else { return }
         guard let body = try? envelope.messageBody() else { return }
+        spikeLog.notice("transferUserInfo \(envelope.event.rawValue, privacy: .public) workoutId=\(envelope.workoutID.uuidString, privacy: .public) isCompanionAppInstalled=\(session.isCompanionAppInstalled, privacy: .public) isReachable=\(session.isReachable, privacy: .public)")
         // `transferUserInfo` rather than `sendMessage`: it is queued by the OS
         // and delivered once the phone is reachable, surviving both the watch
         // app being suspended between sets and it being terminated outright —
@@ -56,6 +61,7 @@ final class PhoneSyncTransport: NSObject {
     func sendNow(_ envelope: SyncEnvelope) {
         guard let session else { return }
         guard let body = try? envelope.messageBody() else { return }
+        spikeLog.notice("sendNow \(envelope.event.rawValue, privacy: .public) isCompanionAppInstalled=\(session.isCompanionAppInstalled, privacy: .public) isReachable=\(session.isReachable, privacy: .public)")
         guard session.isReachable else {
             session.transferUserInfo(body)
             return
@@ -71,10 +77,12 @@ extension PhoneSyncTransport: WCSessionDelegate {
     func session(_ session: WCSession,
                  activationDidCompleteWith state: WCSessionActivationState,
                  error: Error?) {
+        spikeLog.notice("activation=\(state.rawValue, privacy: .public) isCompanionAppInstalled=\(session.isCompanionAppInstalled, privacy: .public) isReachable=\(session.isReachable, privacy: .public) error=\(String(describing: error), privacy: .public)")
         onReachabilityChange?(session.isReachable)
     }
 
     func sessionReachabilityDidChange(_ session: WCSession) {
+        spikeLog.notice("reachability isReachable=\(session.isReachable, privacy: .public)")
         onReachabilityChange?(session.isReachable)
     }
 
@@ -87,11 +95,16 @@ extension PhoneSyncTransport: WCSessionDelegate {
     }
 
     func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
+        spikeLog.notice("received applicationContext keys=\(applicationContext.keys.sorted().joined(separator: ","), privacy: .public)")
         onApplicationContext?(applicationContext)
     }
 
     private func deliver(_ body: [String: Any]) {
-        guard let envelope = try? SyncEnvelope(messageBody: body) else { return }
+        guard let envelope = try? SyncEnvelope(messageBody: body) else {
+            spikeLog.error("received undecodable body")
+            return
+        }
+        spikeLog.notice("received \(envelope.event.rawValue, privacy: .public) workoutId=\(envelope.workoutID.uuidString, privacy: .public) rev=\(envelope.revision, privacy: .public) exercises=\(envelope.plan?.exercises.count ?? -1, privacy: .public)")
         onEnvelope?(envelope)
     }
 }
