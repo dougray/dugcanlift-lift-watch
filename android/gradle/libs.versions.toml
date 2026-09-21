@@ -10,7 +10,7 @@ wearInput = "1.1.0"
 zxing = "3.5.4"
 junit = "4.13.2"
 robolectric = "4.17"
-androidxTestCore = "1.6.1"
+androidxTestCore = "1.7.0"
 androidxTestRunner = "1.6.2"
 androidxTestExtJunit = "1.2.1"
 
