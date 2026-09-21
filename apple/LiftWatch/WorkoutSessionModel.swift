@@ -318,7 +318,9 @@ final class WorkoutSessionModel: ObservableObject {
         // right after sending, or it resends (and re-inserts a duplicate
         // `FoodEntry`) on every later flush.
         for envelope in outbox.pending {
-            transport.send(envelope)
+            // SPIKE DIAGNOSTIC: FOOD_LOGGED via sendMessage, to separate the
+            // transport (transferUserInfo) from the envelope and its handler.
+            if envelope.event == .foodLogged { transport.sendNow(envelope) } else { transport.send(envelope) }
             if envelope.event == .foodLogged {
                 outbox.remove(workoutID: envelope.workoutID)
             }
