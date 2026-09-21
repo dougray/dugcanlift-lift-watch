@@ -36,6 +36,62 @@ platform dependency, and is covered by unit tests that don't need a
 simulator, a device, or a paired phone. `android/liftkit` is likewise plain
 Kotlin with no platform dependency and no simulator required to test it.
 
+## The guided session
+
+A plan is what the watch is meant to lift today; a `WorkoutDraft` is what was
+actually lifted. The two never merge: training against a plan builds an
+ordinary draft, so revisions, `SyncOutbox` and `SESSION_FINISHED` behave
+exactly as they do for a workout typed in from nothing, and **a session with
+no plan is the free-entry flow unchanged** — `WorkoutView` does not even put
+the Now page in the tab order.
+
+- `WorkoutPlan` (`apple/LiftKit`) is the `plan` payload of
+  `shared/contracts/workout-sync.schema.json`, carried by `PLAN_PUSHED`
+  (phone -> watch). `PLAN_REQUEST` (watch -> phone) is a bare envelope asking
+  for the current one, sent when the app becomes active and when the phone
+  becomes reachable. Identity is the envelope's: `workoutId` is the plan's id
+  and `revision` is the plan's revision, so the reconciliation rule above
+  covers a re-push with no new machinery.
+- **Every prescribed field is optional.** `PrescribedSet.weightKg` is
+  `Double?` where `DraftSet.weightKg` — an actual, performed set — is a plain
+  `Double`, because PLAN-FORMAT's `[null, 5]` is "five reps, you pick the
+  weight" and a blank must never reach a wrist as a zero. `headline(unit:)`
+  renders that as "5 reps", and a set prescribing nothing at all as "—".
+- `GuidedSession` holds position only: which exercise, which set of it, and
+  what to do when one is logged. It advances to the next exercise when this
+  one's sets are done, returns the prescription just performed (which is
+  where the rest interval comes from), and wraps rather than ending when an
+  exercise was skipped and is still owed.
+- `LiftingSessionRecorder` runs an `HKWorkoutSession` of
+  `.traditionalStrengthTraining` with an `HKLiveWorkoutBuilder`. This is the
+  opposite choice from `OutdoorActivityRecorder`, deliberately: that class
+  computes distance itself and needs no live statistics, while current,
+  average and maximum heart rate are exactly what the builder surfaces — and
+  the builder is also what saves the workout with the samples collected
+  during it, rather than writing heart rate into a second store. Only one
+  `HKWorkoutSession` may be live at a time, which the UI already guarantees:
+  an in-progress outdoor recording owns the whole screen.
+
+### The transport gap, measured
+
+`LIFT iOS` and this app are **not** `WCSession` peers today. On a paired
+iPhone 17 / Apple Watch Ultra 4 simulator pair (watchOS 27, both apps
+installed and running, `simctl list pairs` reporting *active, connected*),
+the phone's `WCSession` reports `isPaired == true` but
+`isWatchAppInstalled == false` and `isReachable == false`, so every
+`transferUserInfo` queues into nothing. `WCSession` connects an iOS app to
+*its own* companion watch app; this one is `WKWatchOnly` with its own bundle
+id. The complications design already suspected this in prose; this is the
+first measurement, and it applies equally to the food snapshot and
+`FOOD_LOGGED` that shipped before it — the delivery, not the envelope, is
+what is missing.
+
+Until the watch app ships as a companion target, a DEBUG build accepts one
+`SyncEnvelope` as JSON from the launch environment
+(`LIFT_SYNC_ENVELOPE`, see `WorkoutSessionModel`), delivered through the same
+`receive(_:)` the transport calls — so the decode, the revision rule and the
+guided start are the real ones and only the delivery is by hand.
+
 ## Food quick-log
 
 `FOOD_LOGGED` (a `SyncEnvelope` event, watch -> phone) and
@@ -79,6 +135,6 @@ LIFT PWA scans.
   There is no channel back from the PWA, so the watch cannot know a scan
   succeeded, and an automatic clear would lose the log whenever one failed.
 
-New source files must be registered in `LiftWatch.xcodeproj/project.pbxproj`.
-This project lists its sources explicitly rather than using a synced folder,
-so a new file is invisible to the build until it is added there.
+New source files are picked up by `xcodegen generate` (`make project`), which
+globs `apple/LiftWatch`; the `.xcodeproj` is generated and must not be
+hand-edited.
