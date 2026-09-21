@@ -127,6 +127,7 @@ final class WorkoutSessionModel: ObservableObject {
     /// workout typed in from nothing.
     func startPlannedWorkout() {
         guard let plan, !plan.exercises.isEmpty else { return }
+        spikeLog.notice("guided session started plan=\(plan.name, privacy: .public)")
         let exercises = plan.exercises.enumerated().map { index, exercise in
             DraftExercise(
                 // The plan carries no exercise ids (PLAN-FORMAT gives
@@ -346,6 +347,7 @@ final class WorkoutSessionModel: ObservableObject {
         planID = envelope.workoutID
         planRevision = envelope.revision
         plan = pushed
+        spikeLog.notice("plan accepted name=\(pushed.name, privacy: .public) rev=\(envelope.revision, privacy: .public) exercises=\(pushed.exercises.count, privacy: .public)")
     }
 
     private func receive(_ envelope: SyncEnvelope) {
