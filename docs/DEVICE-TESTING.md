@@ -99,11 +99,6 @@ or wrist-down. The app is installed; open it from the watch's app list.
 
 ## Wear OS
 
-There is no phone transport to test — the Wearable Data Layer needs Play
-Services on both ends and LIFT Android carries none, so the watch is
-standalone and exports by QR code instead. The offline, duplicate-message and
-out-of-order delivery scenarios above have no Wear equivalent.
-
 What does need a device or emulator:
 
 ```bash
@@ -125,3 +120,41 @@ cd android && JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/
   were on screen when the export opened, and asks first. Anything logged while
   the export was open must survive.
 - **Rotary input** on the amount screen, in both grams and ounces.
+
+### The phone link (LIFT Link)
+
+**This needs two real radios and has not been run on any.** A Wear OS AVD does
+not emulate a Bluetooth controller, and two emulators cannot bond, so none of
+the following can be checked without a watch and a phone in the same room. The
+protocol itself is covered on the JVM (`:liftkit`'s `link` tests, including a
+loopback harness that runs both ends through an in-memory pipe at a 23-byte
+MTU) — the radio is what is left.
+
+On a real watch and a real phone, in order:
+
+1. **Pair.** Watch → Phone → "Pair with phone". On the phone, Home → Watch →
+   "Pair with my watch". The watch should appear by name. Expect the system
+   Bluetooth pairing dialog on **both** devices — the characteristics are
+   encrypted, so the first write is what triggers bonding, and the phone
+   retries that write once the bond completes.
+2. **Check the code.** Both screens must show the same six digits. Confirm on
+   the phone, accept on the watch, in that order and then again in the other
+   order on a second attempt — the protocol allows either, and only a device
+   test proves the UI does too.
+3. **Refuse on the watch.** Nothing must be remembered on either end.
+4. **Pair the wrong watch on purpose**, if two are available: the codes must
+   differ, which is the whole reason the code exists.
+5. **Push a plan** from the phone's Watch card. Check `adb logcat` on the watch
+   for the plan arriving, and that a prescription of reps with no weight arrives
+   with **no weight** rather than a zero.
+6. **Walk away and come back.** The link should drop and re-establish with no
+   taps at all once the watch app is foregrounded again.
+7. **Close LIFT on the watch.** The watch must stop advertising: the phone's
+   card should say it is waiting, and the watch must behave exactly as it did
+   before this feature — food logging and QR export, offline.
+8. **Turn Bluetooth off** on each end in turn; both apps should say so plainly
+   rather than spinning.
+9. **Battery.** Leave the watch advertising, app open, for an hour and compare
+   against an hour with the app open and the link idle. Advertising is the cost
+   this design chose to pay only while the app is open; measure it rather than
+   assuming it.
