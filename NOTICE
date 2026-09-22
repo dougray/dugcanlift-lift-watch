@@ -12,6 +12,8 @@ synchronization) with, and is a companion to:
 - LIFT Android (DugCanLiftCalc) — AGPL-3.0
 - LIFT iOS (lift-ios) — AGPL-3.0
 
-No source from those repositories is vendored here; `apple/LiftKit` is a
-clean-room reimplementation of the shared contract described in
-`docs/ARCHITECTURE.md` and `shared/contracts/workout-sync.schema.json`.
+No source from those repositories is vendored here.
+
+The Apple Watch application that was in `apple/` (with its `LiftKit` package
+and `shared/contracts/`) moved to lift-ios in 2026-09, as LIFT for iPhone's
+companion app, and is maintained there.
