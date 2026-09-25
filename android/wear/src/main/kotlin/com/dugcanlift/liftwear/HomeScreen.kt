@@ -25,6 +25,7 @@ import com.dugcanlift.liftkit.totalSetCount
 @Composable fun HomeScreen(
     log: StandaloneFoodLog,
     linkStore: PhoneLinkStore,
+    link: PhoneLinkPeripheral,
     session: SessionController,
     onLog: () -> Unit,
     onExport: () -> Unit,
@@ -40,6 +41,12 @@ import com.dugcanlift.liftkit.totalSetCount
     var corrupted by remember { mutableStateOf(log.quarantineDiscardedCount) }
     var plan by remember { mutableStateOf(session.todaysPlan()) }
     val draft by session.draft.collectAsState()
+    // A plan arrives over the radio while this screen is the one showing -- that is the whole point
+    // of "Send today's workout" on the phone -- so it must appear here without the lifter having to
+    // navigate away and back. The ON_RESUME refresh below still covers a plan that landed while some
+    // other screen was up, and one delivered before this composition existed.
+    val pushed by link.plan.collectAsState()
+    LaunchedEffect(pushed) { plan = session.todaysPlan() }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
