@@ -3,6 +3,9 @@
     <!-- Not required: a watch without BLE still logs food and exports by QR, which is the whole
          app minus the phone link. -->
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
+    <!-- Not required either: a watch with no heart rate sensor runs a guided session perfectly well,
+         it just shows no bpm line. -->
+    <uses-feature android:name="android.hardware.sensor.heartrate" android:required="false" />
 
     <!-- LIFT Link (docs/LINK-PROTOCOL.md). The watch is the peripheral: it advertises and accepts
          a connection, and it never scans, so BLUETOOTH_SCAN is deliberately absent. With no scan
@@ -17,6 +20,18 @@
          API level, and maxSdkVersion keeps them off every device that has the modern pair. -->
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+
+    <!-- The guided session. BODY_SENSORS is heart rate through Health Services
+         (androidx.health:health-services-client), an AndroidX artifact that binds to the watch's own
+         Health Services system package. It is NOT Play Services: its whole dependency tree was
+         resolved and read before it was added, and PhoneLinkManifestTest asserts that neither this
+         manifest nor the build file has ever named a Play Services coordinate. A refused permission
+         costs the heart rate and nothing else: sets are logged either way.
+
+         VIBRATE is the buzz at the end of a rest interval, which is the entire reason a rest timer
+         on a wrist is worth having. Install-time, so it asks the user nothing. -->
+    <uses-permission android:name="android.permission.BODY_SENSORS" />
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <application
         android:label="LIFT"

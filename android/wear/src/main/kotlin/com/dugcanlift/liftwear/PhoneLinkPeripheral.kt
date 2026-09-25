@@ -70,10 +70,30 @@ class PhoneLinkPeripheral(context: Context, private val store: PhoneLinkStore) {
     private val _status = MutableStateFlow<Status>(Status.Idle)
     val status: StateFlow<Status> = _status.asStateFlow()
 
-    /** The most recent plan the phone pushed. The guided session reads this; v1 only proves it
-     *  arrives, which is why nothing else in the app looks at it yet. */
+    /**
+     * The most recent plan the phone pushed, for anything watching the radio directly.
+     *
+     * [onPlan] is what actually **keeps** it: this flow dies with the process, and the plan has to
+     * survive it -- the watch's radio is off unless LIFT is open, so a plan lost to a process death is
+     * a plan the lifter walks back to their phone for. The callback answers whether the plan was taken
+     * under the conflict rule, which is what the ACK outcome says.
+     */
     private val _plan = MutableStateFlow<Plan?>(null)
     val plan: StateFlow<Plan?> = _plan.asStateFlow()
+
+    /**
+     * Where a pushed plan is stored. Returns true when this plan was taken (a new id, or a newer
+     * revision of the one held) and false when it was already had -- [AckOutcome.INSERTED] against
+     * [AckOutcome.IDEMPOTENT], which is now answerable because something persists plans.
+     */
+    var onPlan: ((Plan) -> Boolean)? = null
+
+    /** Called with a session id the phone says it has stored, which is what takes it out of the
+     *  outbox. A send is not a receipt; this is. */
+    var onSessionAcknowledged: ((String) -> Unit)? = null
+
+    /** Called when the link reaches READY, so whatever is owed can be offered again. */
+    var onReady: (() -> Unit)? = null
 
     private var server: BluetoothGattServer? = null
     private var tx: BluetoothGattCharacteristic? = null
@@ -124,11 +144,50 @@ class PhoneLinkPeripheral(context: Context, private val store: PhoneLinkStore) {
         _status.value = Status.Idle
     }
 
+    /**
+     * Whether the Bluetooth permissions this needs have been granted. The app's own foreground
+     * observer asks before calling [start], so opening LIFT on an unpaired watch does not flip the
+     * status to "needs permission" on a screen that never mentioned Bluetooth.
+     */
+    val hasBluetoothPermission: Boolean
+        get() = hasPermission(connectPermission) && hasPermission(advertisePermission)
+
+    /** Whether a link is up and carrying messages right now. */
+    val isLinked: Boolean get() = session?.state == LinkState.READY
+
     /** The watch's own user answered the confirmation prompt. */
     fun confirm(accepted: Boolean) {
         val current = session ?: return
         if (current.state != LinkState.CONFIRMING) return
         apply(current.confirm(accepted))
+    }
+
+    /**
+     * Streams one logged set, when there is a link to stream it down. **Dropped silently when there is
+     * not** -- SET_LOGGED is optional by design (`docs/LINK-PROTOCOL.md`), the finished session is the
+     * source of truth, and it is already on the watch's own disk before this is ever called.
+     */
+    fun reportSet(report: LoggedSetReport) {
+        val current = session ?: return
+        if (current.state != LinkState.READY) return
+        runCatching { queue(current.reportSet(report)) }
+    }
+
+    /**
+     * Hands a finished session to the phone. Kept in the outbox until an ACK names it, so this is
+     * called again on every reconnect and every launch until the phone says it has it.
+     */
+    fun sendFinishedSession(finished: FinishedSession) {
+        val current = session ?: return
+        if (current.state != LinkState.READY) return
+        runCatching { queue(current.finishSession(finished)) }
+    }
+
+    /** Asks the phone to push today's plan. It answers with a PLAN_PUSHED when it has one. */
+    fun requestPlan() {
+        val current = session ?: return
+        if (current.state != LinkState.READY) return
+        runCatching { queue(current.requestPlan()) }
     }
 
     /** Forget the phone and go back to standalone. Stops the radio too: nothing is waiting for it. */
@@ -181,6 +240,8 @@ class PhoneLinkPeripheral(context: Context, private val store: PhoneLinkStore) {
                         return
                     }
                     peer = device
+                    // A fresh codec per connection, back at the version every build can read until
+                    // this handshake says otherwise.
                     codec = LinkCodec()
                     notificationsEnabled = false
                     outbound.clear()
@@ -285,13 +346,17 @@ class PhoneLinkPeripheral(context: Context, private val store: PhoneLinkStore) {
     }
 
     private fun apply(reaction: Reaction) {
+        // Frames first, then the version: a HELLO_ACK is framed before this raises the codec, which is
+        // what keeps the handshake legible to a peer that only speaks version 1.
         reaction.send.forEach(::queue)
+        session?.negotiatedVersion?.let { codec.version = it }
         reaction.events.forEach { event ->
             when (event) {
                 is LinkEvent.ConfirmationCode -> _status.value = Status.Confirming(event.code, event.peerName)
                 is LinkEvent.Paired -> {
                     peer?.let { store.remember(it.address, event.peerName.ifBlank { it.safeName() ?: "phone" }) }
                     _status.value = Status.Linked(event.peerName)
+                    onReady?.invoke()
                 }
                 LinkEvent.PairingRejected -> {
                     _status.value = Status.Failed("Pairing was refused.")
@@ -299,27 +364,40 @@ class PhoneLinkPeripheral(context: Context, private val store: PhoneLinkStore) {
                 }
                 is LinkEvent.PlanReceived -> {
                     _plan.value = event.plan
-                    acknowledgePlan(event.plan)
+                    acknowledgePlan(event.plan, stored = onPlan?.invoke(event.plan))
+                }
+                is LinkEvent.Acknowledged -> {
+                    // The phone has stored the session under this id, so it can stop being offered.
+                    // Until this arrives the watch keeps it, whatever the radio reported.
+                    if (event.ack.ackType == MessageType.SESSION_FINISHED) {
+                        onSessionAcknowledged?.invoke(event.ack.id)
+                    }
                 }
                 is LinkEvent.Failed -> {
                     _status.value = Status.Failed(event.error.error.name)
                     disconnectPeer()
                 }
-                // Nothing on the watch sends these yet, and a phone must not be able to make the
-                // watch act on one: they are the guided session's, and it does not exist here.
-                is LinkEvent.Refused, is LinkEvent.Acknowledged, is LinkEvent.SetLogged,
+                // A phone must not be able to make the watch act on one of these: SET_LOGGED,
+                // SESSION_FINISHED and PLAN_REQUEST all travel watch to phone, and a refusal of one
+                // message is worth a log rather than a teardown.
+                is LinkEvent.Refused, is LinkEvent.SetLogged,
                 is LinkEvent.SessionFinished, LinkEvent.PlanRequested -> Unit
             }
         }
     }
 
-    private fun acknowledgePlan(plan: Plan) {
+    private fun acknowledgePlan(plan: Plan, stored: Boolean?) {
         val current = session ?: return
         if (current.state != LinkState.READY) return
-        // Nothing here persists a plan yet, so the honest outcome is ACCEPTED: this build read it
-        // and holds it in memory for as long as the app lives. When the guided session stores
-        // plans, INSERTED and IDEMPOTENT become answerable and this is where they are answered.
-        queue(current.acknowledge(LinkAck(MessageType.PLAN_PUSHED, plan.planId, plan.revision, AckOutcome.ACCEPTED)))
+        // Now that plans are persisted, the three outcomes are answerable: it went in, the watch
+        // already had that revision, or nothing here is keeping plans at all and the honest answer is
+        // still ACCEPTED -- read and held for as long as the app lives.
+        val outcome = when (stored) {
+            true -> AckOutcome.INSERTED
+            false -> AckOutcome.IDEMPOTENT
+            null -> AckOutcome.ACCEPTED
+        }
+        queue(current.acknowledge(LinkAck(MessageType.PLAN_PUSHED, plan.planId, plan.revision, outcome)))
     }
 
     private fun queue(message: LinkMessage) {
