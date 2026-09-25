@@ -65,6 +65,29 @@ class PhoneLinkManifestTest {
         assertFalse(text.contains("com.google.android.wearable.datalayer"))
     }
 
+    /**
+     * Health Services arrived with the guided session, and it is the one dependency that could
+     * plausibly have dragged Play Services in behind it. Its tree was read before it was added; this
+     * is what keeps that true, in the file that decides what ships.
+     */
+    @Test fun `there is still no Play Services in the build file either`() {
+        val build = File("build.gradle.kts").readText()
+        listOf("play-services", "com.google.android.gms", "playServices").forEach { forbidden ->
+            assertFalse("build.gradle.kts names $forbidden", build.contains(forbidden))
+        }
+        // And the heart rate really does come from AndroidX.
+        assertTrue(build.contains("libs.androidx.health.services.client"))
+    }
+
+    @Test fun `the watch may read a heart rate, and works without one`() {
+        assertTrue(permissions.containsKey("android.permission.BODY_SENSORS"))
+        // The buzz at the end of a rest interval. Install-time, so it asks nothing.
+        assertTrue(permissions.containsKey("android.permission.VIBRATE"))
+        val sensor = named("uses-feature")["android.hardware.sensor.heartrate"]
+        assertNotNull(sensor)
+        assertEquals("false", sensor!!.getAttributeNS(ANDROID, "required"))
+    }
+
     @Test fun `the app is still declared standalone`() {
         val standalone = named("meta-data")["com.google.android.wearable.standalone"]
         assertNotNull(standalone)
