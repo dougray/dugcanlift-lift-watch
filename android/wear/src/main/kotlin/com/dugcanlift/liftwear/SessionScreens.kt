@@ -306,18 +306,25 @@ fun RestScreen(session: SessionController, onBack: () -> Unit) {
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
     var buzzed by remember { mutableStateOf(false) }
 
+    // One loop, and the buzz decided inside it. Keying a LaunchedEffect on `now` would tear down and
+    // restart a coroutine twice a second for no reason, and reads worse than the thing it does.
+    //
+    // Everything is derived from the start instant (`RestTimer` holds no ticking state of its own),
+    // so a screen that was off for a minute shows the right number the moment it comes back.
     LaunchedEffect(Unit) {
         while (true) {
             now = System.currentTimeMillis()
+            val current = session.rest.value
+            buzzed = when {
+                !current.isRunning -> false
+                current.hasFinished(now) -> {
+                    if (!buzzed) buzzRestOver(context)
+                    true
+                }
+                else -> false
+            }
             delay(500)
         }
-    }
-    // Derived from the start instant, so this is right even if the screen was off for a minute.
-    LaunchedEffect(rest, now) {
-        if (!rest.isRunning) { buzzed = false; return@LaunchedEffect }
-        if (rest.hasFinished(now)) {
-            if (!buzzed) { buzzRestOver(context); buzzed = true }
-        } else buzzed = false
     }
 
     Scaffold(timeText = { TimeText() }) {

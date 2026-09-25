@@ -27,6 +27,7 @@ class MainActivity : ComponentActivity() {
                         HomeScreen(
                             log = container.log,
                             linkStore = container.linkStore,
+                            link = container.phoneLink,
                             session = container.session,
                             onLog = { nav.navigate(Routes.SEARCH) },
                             onExport = { nav.navigate(Routes.EXPORT) },
