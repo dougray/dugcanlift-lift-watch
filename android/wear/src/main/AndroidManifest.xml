@@ -20,6 +20,8 @@
 
     <application
         android:label="LIFT"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@android:style/Theme.DeviceDefault"
         android:allowBackup="false">
         <meta-data android:name="com.google.android.wearable.standalone" android:value="true" />
