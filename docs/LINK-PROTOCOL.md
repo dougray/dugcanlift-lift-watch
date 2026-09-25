@@ -1,6 +1,6 @@
 # LIFT Link — the Wear OS ↔ LIFT Android channel
 
-Version 1. A direct Bluetooth LE channel between LIFT Android (the phone) and the LIFT Wear OS
+Version 2, and it still speaks version 1. A direct Bluetooth LE channel between LIFT Android (the phone) and the LIFT Wear OS
 watch, so the phone can push the day's workout to the wrist and the wrist can send back what was
 actually lifted.
 
@@ -198,6 +198,38 @@ of zero, or a single trailing byte is refused with an `ERROR`, never tidied up.
 - **Days** are `yyyy-MM-dd`, local, like every day key in LIFT.
 - **Side** is SHARE-FORMAT's flags codes — 1 left, 2 right — and **absent means both**. There is
   deliberately no "both" value to write by accident.
+
+### Version 2: a coach's sides
+
+Version 2 added two fields to `PLAN_PUSHED` and nothing else:
+
+- **`eachSide` on an exercise** — every prescribed set is done on both sides (PLAN-FORMAT.md
+  "Sides", `b: 1`). "3 × 8 each side" stays three prescribed rows and is six sets, three a side.
+- **a named `side` on a prescribed set** — one set for one limb, the set tuple's sixth position.
+  Legal whether or not its exercise is each-side, where it means that set alone is single-limb.
+
+Both are **presence bits in masks version 1 already reserved** (`0x08` on the exercise mask, `0x10`
+on the prescribed-set mask), so **a plan that says nothing about sides encodes to exactly the bytes
+version 1 wrote** and the `plan` line of `fixtures/link-wire.txt` did not move. `eachSide` is a bit
+with no bytes behind it — the bit *is* the value, and `false` writes nothing at all.
+
+Two things make this a version a version-1 peer can still be talked to, rather than a break:
+
+1. **Frames go out at the negotiated version, not at this build's newest** (`LinkCodec.version`,
+   which starts at `MIN_SUPPORTED_VERSION` and is raised once the handshake has settled). Otherwise a
+   version-2 build would write `02` in byte 0 of its own HELLO and a version-1 peer would refuse the
+   handshake itself — the version range in `HELLO` would never get a chance to mean anything. An
+   `ERROR` still always goes at version 1, as this document has always said.
+2. **`LinkSession.pushPlan` strips the sides when the link settled on version 1.** Losing a label
+   costs a lifter a letter beside a number; losing the frame costs them the whole workout.
+
+So: a version-2 phone and a version-1 watch get a working link with no side markers, and two
+version-2 builds get the sides. `LinkPlanSidesTest` (shared, in both repos) pins all of it, including
+that stripping a sided plan gives byte for byte what a plan without sides gives.
+
+**Not in version 2:** duration and distance on a prescription, and per-set `restSeconds` beyond what
+version 1 already carried. A conditioning piece prescribed by time still reaches the watch as a set
+with no numbers.
 
 ### What v1 carries
 
