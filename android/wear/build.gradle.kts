@@ -61,6 +61,10 @@ kotlin { jvmToolchain(17) }
 // path across as a system property instead of duplicating the files.
 tasks.withType<Test>().configureEach {
     systemProperty("liftkitFixturesDir", rootProject.projectDir.resolve("liftkit/src/test/resources/fixtures").absolutePath)
+    // PhoneLinkManifestTest reads the manifest as a file rather than through Robolectric, so it
+    // asserts about what ships. Declaring it an input means a manifest-only edit reruns the tests
+    // instead of being reported as up to date -- the same arrangement LIFT Android uses.
+    inputs.file("src/main/AndroidManifest.xml").withPathSensitivity(PathSensitivity.RELATIVE)
 }
 dependencies {
     implementation(project(":liftkit"))
