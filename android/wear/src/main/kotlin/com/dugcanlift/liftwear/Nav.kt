@@ -2,7 +2,7 @@ package com.dugcanlift.liftwear
 import androidx.compose.runtime.*
 import com.dugcanlift.liftkit.*
 
-object Routes { const val HOME = "home"; const val SEARCH = "search"; const val AMOUNT = "amount"; const val MEAL = "meal"; const val EXPORT = "export" }
+object Routes { const val HOME = "home"; const val SEARCH = "search"; const val AMOUNT = "amount"; const val MEAL = "meal"; const val EXPORT = "export"; const val PHONE = "phone" }
 
 /**
  * The in-progress log entry, held above the nav graph so back/forward do not lose it.

@@ -15,7 +15,13 @@ import com.dugcanlift.liftkit.StandaloneFoodLog
  * destination its own back-stack-entry-scoped LocalLifecycleOwner, which re-fires ON_RESUME
  * when swiping back from Export — observe that instead of relying on recomposition.
  */
-@Composable fun HomeScreen(log: StandaloneFoodLog, onLog: () -> Unit, onExport: () -> Unit) {
+@Composable fun HomeScreen(
+    log: StandaloneFoodLog,
+    linkStore: PhoneLinkStore,
+    onLog: () -> Unit,
+    onExport: () -> Unit,
+    onPhone: () -> Unit,
+) {
     var count by remember { mutableStateOf(log.entries.size) }
     // A discarded quarantine is a second corruption that "first wins" refused to keep — surfaced
     // here so a user or a future support path can tell something was dropped rather than the loss
@@ -42,6 +48,11 @@ import com.dugcanlift.liftkit.StandaloneFoodLog
                             count > 0 -> "$count to export"
                             else -> "Nothing logged yet"
                         }) },
+                        colors = ChipDefaults.secondaryChipColors(), modifier = Modifier.fillMaxWidth()) }
+            // The QR export above stays the watch's own route out, paired or not: pairing adds a
+            // way in for the day's workout, it does not replace the way out for the food log.
+            item { Chip(onClick = onPhone, label = { Text("Phone") },
+                        secondaryLabel = { Text(linkStore.pairedName ?: "Not paired") },
                         colors = ChipDefaults.secondaryChipColors(), modifier = Modifier.fillMaxWidth()) }
             if (corrupted > 0) item { Text("$corrupted corrupted log${if (corrupted == 1) "" else "s"} could not be recovered", color = DclColors.Muted) }
         }
