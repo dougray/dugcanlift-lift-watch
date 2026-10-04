@@ -4,11 +4,14 @@ Two Gradle modules, root project `LiftWear`:
 
 - `:liftkit` — plain Kotlin, no Android/Wear dependency. Standalone food
   logging domain: `WatchFoodLibrary`, `StandaloneFoodLog`, `StandaloneExport`
-  (the QR export encoder), and the models they share. No simulator or
-  emulator is needed to build or test this module.
+  (the QR export encoder), and the models they share; plus
+  `com.dugcanlift.liftkit.link`, the LIFT Link protocol (framing, payload
+  codec, pairing code, state machine) shared byte-for-byte with LIFT Android.
+  No simulator or emulator is needed to build or test this module.
 - `:wear` — the Wear OS app (Compose for Wear OS): home, food search,
-  rotary amount entry, meal selection, and the QR export screen
-  (`QrBitmap`, `ExportScreen`). Depends on `:liftkit`.
+  rotary amount entry, meal selection, the QR export screen
+  (`QrBitmap`, `ExportScreen`), and the phone link
+  (`PhoneLinkPeripheral`, `PhoneLinkScreen`). Depends on `:liftkit`.
 
 ## Build and test
 
@@ -36,14 +39,28 @@ the JVM like `:liftkit`'s) runs on the `Wear_Round` AVD, created from the
   -d "wearos_large_round" --force
 ```
 
-## No phone sync
+## Phone sync: LIFT Link, not the Data Layer
 
 LIFT Android carries no Google Play Services by policy, and the Wearable Data
-Layer needs Play Services on both the watch and the phone — so there is no
-phone transport here. The watch is standalone-first: it logs food with no
-phone present and exports the log as a QR code the LIFT PWA scans, the same
-path watchOS uses (`android/liftkit/StandaloneExport.kt`,
-`docs/ARCHITECTURE.md`).
+Layer needs Play Services on both the watch and the phone — so there is no Data
+Layer transport here and there never will be. **LIFT Link** is a direct
+Bluetooth LE channel instead: the watch is the GATT peripheral, the phone is the
+central, both characteristics are encrypted so an unbonded read is impossible,
+and a six-digit confirmation code computed independently on both ends says you
+paired the watch you meant to. The protocol is `docs/LINK-PROTOCOL.md`; the
+framing, codec and state machine are pure Kotlin in `:liftkit`'s
+`com.dugcanlift.liftkit.link`, byte-identical to the copy in the phone repo and
+pinned by a shared wire fixture.
+
+**Still no `INTERNET` permission and still no Play Services** — that constraint
+is the whole reason this exists rather than the Data Layer, and
+`PhoneLinkManifestTest` fails if either ever comes back.
+
+**The watch is standalone-first, unchanged.** It logs food with no phone present
+and exports the log as a QR code the LIFT PWA scans, the same path watchOS uses
+(`android/liftkit/StandaloneExport.kt`, `docs/ARCHITECTURE.md`). The radio only
+runs while the app is open and a phone is paired or being paired; with LIFT
+closed the watch advertises nothing.
 
 ## Cutting a Wear OS release
 

@@ -26,10 +26,23 @@ Platform transports are implementation details:
 
 - watchOS uses WatchConnectivity to the iPhone application
   (`apple/LiftWatch/PhoneSyncTransport.swift`).
-- Wear OS has **no phone transport** in v1: LIFT Android carries no Play
-  Services by policy, and the Data Layer needs it on both ends. The watch
-  exports through the same QR path as watchOS
-  (`android/liftkit/StandaloneExport.kt`).
+- Wear OS uses **LIFT Link**, a direct Bluetooth LE channel to LIFT Android
+  (`docs/LINK-PROTOCOL.md`, `android/wear/…/PhoneLinkPeripheral.kt`). The Data
+  Layer is not an option — LIFT Android carries no Play Services by policy and
+  the Data Layer needs it on both ends — so the channel is our own: fixed
+  8-byte frames versioned from the first byte, encrypted characteristics that
+  require a bond, and a confirmation code both ends derive rather than send.
+  The QR export stays exactly as it was
+  (`android/liftkit/StandaloneExport.kt`): the link adds a way *in* for the
+  day's workout, it does not replace the way *out* for the food log, and a
+  watch that never pairs is unchanged.
+
+LIFT Link's own protocol layer — framing, payload codec, pairing code and
+state machine — is plain Kotlin in `android/liftkit`'s
+`com.dugcanlift.liftkit.link` with no Android imports, tested on the JVM, and
+compiled byte-identically into LIFT Android from its own repository. The two
+copies are held together by a shared wire fixture rather than by discipline;
+their eventual home is `dugcanlift-kit-android`.
 
 All of the above except the transport files is plain Swift/Kotlin with no
 platform dependency, and is covered by unit tests that don't need a
