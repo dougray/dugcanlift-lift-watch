@@ -2,7 +2,15 @@ package com.dugcanlift.liftwear
 import androidx.compose.runtime.*
 import com.dugcanlift.liftkit.*
 
-object Routes { const val HOME = "home"; const val SEARCH = "search"; const val AMOUNT = "amount"; const val MEAL = "meal"; const val EXPORT = "export"; const val PHONE = "phone" }
+object Routes {
+    const val HOME = "home"; const val SEARCH = "search"; const val AMOUNT = "amount"
+    const val MEAL = "meal"; const val EXPORT = "export"; const val PHONE = "phone"
+    /** The guided session's own pages. [LOG_SET] takes the draft exercise's id. */
+    const val SESSION = "session"; const val LOG_SET = "logset"; const val REST = "rest"
+    const val EXERCISES = "exercises"; const val ADD_EXERCISE = "addexercise"; const val SUMMARY = "summary"
+    fun logSet(exerciseId: String) = "$LOG_SET/$exerciseId"
+    const val LOG_SET_ROUTE = "$LOG_SET/{exerciseId}"
+}
 
 /**
  * The in-progress log entry, held above the nav graph so back/forward do not lose it.
