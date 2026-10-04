@@ -73,6 +73,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.wear.input)
+    implementation(libs.androidx.health.services.client)
     implementation(libs.wear.compose.material)
     implementation(libs.wear.compose.foundation)
     implementation(libs.wear.compose.navigation)

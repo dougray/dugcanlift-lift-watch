@@ -34,19 +34,25 @@ fun PhoneLinkScreen(link: PhoneLinkPeripheral, store: PhoneLinkStore, onBack: ()
         link.start()
     }
 
-    // Advertise while this screen is resumed, and stop when it is not. A watch whose LIFT is
-    // closed must behave exactly as it did before the link existed.
+    // Advertise while this screen is resumed. A watch whose LIFT is closed must behave exactly as it
+    // did before the link existed -- but once a phone is remembered, the *app* holds the radio for the
+    // whole time it is open (MainActivity's observer), because a guided session needs the link up on
+    // every screen and not only on this one. So leaving here stops the radio only when there is
+    // nothing paired: this screen was the pairing flow, and the pairing did not happen.
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner, asked) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_RESUME -> if (asked) link.start()
-                Lifecycle.Event.ON_PAUSE -> link.stop()
+                Lifecycle.Event.ON_PAUSE -> if (!store.isPaired) link.stop()
                 else -> Unit
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer); link.stop() }
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            if (!store.isPaired) link.stop()
+        }
     }
 
     Scaffold(timeText = { TimeText() }) {
