@@ -32,11 +32,8 @@ struct ExerciseListView: View {
                         ExerciseRow(exercise: exercise, unit: session.unit)
                     }
                     // Opening an exercise out of order moves the guided
-                    // session with it, so the prescription on the next screen
-                    // belongs to the exercise the lifter actually opened.
-                    .simultaneousGesture(TapGesture().onEnded {
-                        session.focusGuidedSession(on: exercise.id)
-                    })
+                    // session with it: `LogSetView` refocuses on appear, which
+                    // a VoiceOver activation reaches and a tap gesture did not.
                 }
             }
             NavigationLink("Add Exercise") { ExercisePickerView() }

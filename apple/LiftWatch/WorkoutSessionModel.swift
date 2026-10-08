@@ -1,6 +1,7 @@
 import Foundation
 import LiftKit
 import SwiftUI
+import WatchKit
 
 /// Owns the workout the watch is training against right now.
 ///
@@ -17,7 +18,20 @@ final class WorkoutSessionModel: ObservableObject {
     /// `StandaloneFoodLog`'s doc comment for why `SyncOutbox` cannot serve
     /// this purpose.
     let foodLog = StandaloneFoodLog()
-    @Published var restTimer = RestTimer()
+    /// Every start, skip or restart re-arms the end-of-rest alert, whichever
+    /// view made the change — see `scheduleRestAlert()`.
+    @Published var restTimer = RestTimer() {
+        didSet {
+            if restTimer.startedAt != oldValue.startedAt || restTimer.interval != oldValue.interval {
+                scheduleRestAlert()
+            }
+        }
+    }
+    /// The pending end-of-rest haptic. Owned by the model, not by
+    /// `RestTimerView`: the lifter is usually on the exercise list or Now
+    /// page (or has the wrist down) when rest ends, and a tap that only
+    /// fires while one page of the pager is alive is a tap that goes missing.
+    private var restAlertTask: Task<Void, Never>?
     @Published var unit: WeightUnit = .pounds
     @Published var servingUnit: ServingUnit = .grams
     @Published private(set) var isPhoneReachable = false
@@ -200,6 +214,9 @@ final class WorkoutSessionModel: ObservableObject {
     }
 
     func finishWorkout() {
+        // A second tap on a Finish button that is still on screen for a
+        // frame must not re-enqueue `SESSION_FINISHED`.
+        guard let current = draft, !current.isFinished else { return }
         edit { $0.finish() }
         restTimer.stop()
         // Ends the HealthKit session and hands back the two numbers the
@@ -211,6 +228,34 @@ final class WorkoutSessionModel: ObservableObject {
             enqueue(.sessionFinished, for: draft, heartRate: sessionHeartRate)
         }
         guided = nil
+        // The workout is over: let go of it so `RootView` returns to the
+        // start screen. It is already persisted in `store` and queued in the
+        // outbox (which keeps it until the phone acknowledges), so nothing
+        // the phone needs is lost by clearing the live draft.
+        draft = nil
+    }
+
+    // MARK: - Rest alert
+
+    /// Plays the end-of-rest haptic when the running rest timer reaches zero.
+    ///
+    /// A `Task` rather than a `Timer`: it is cancelled and replaced on every
+    /// change to `restTimer`, so a skipped or restarted rest never alerts
+    /// late. It keeps running with the wrist down because a lifting session
+    /// holds an `HKWorkoutSession`, which is what gives the app background
+    /// runtime in the first place.
+    private func scheduleRestAlert() {
+        restAlertTask?.cancel()
+        restAlertTask = nil
+        guard let remaining = restTimer.remaining(), let startedAt = restTimer.startedAt,
+              remaining > 0 else { return }
+        restAlertTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(remaining))
+            guard !Task.isCancelled, let self,
+                  self.restTimer.startedAt == startedAt,
+                  self.restTimer.hasFinished() else { return }
+            WKInterfaceDevice.current().play(.notification)
+        }
     }
 
     // MARK: - Plans

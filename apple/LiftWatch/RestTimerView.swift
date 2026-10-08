@@ -1,11 +1,15 @@
 import LiftKit
 import SwiftUI
-import WatchKit
 
+/// The countdown display. The end-of-rest haptic is not here: it lives in
+/// `WorkoutSessionModel.scheduleRestAlert()`, so it fires whichever page is
+/// showing and with the wrist down. "The point of a watch rest timer is not
+/// having to look at it."
 struct RestTimerView: View {
     @EnvironmentObject private var session: WorkoutSessionModel
     @State private var now = Date()
-    @State private var didAlert = false
+    /// Scales with the wearer's text size, like the captions around it.
+    @ScaledMetric(relativeTo: .largeTitle) private var countdownSize: CGFloat = 44
 
     private let tick = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
@@ -16,8 +20,10 @@ struct RestTimerView: View {
                 .foregroundStyle(DclTheme.muted)
 
             Text(RestTimer.format(session.restTimer.remaining(at: now) ?? session.restTimer.interval))
-                .font(.system(size: 44, weight: .semibold, design: .rounded))
+                .font(.system(size: countdownSize, weight: .semibold, design: .rounded))
                 .monospacedDigit()
+                .minimumScaleFactor(0.6)
+                .lineLimit(1)
 
             ProgressView(value: session.restTimer.progress(at: now))
                 .tint(DclTheme.accent)
@@ -33,20 +39,6 @@ struct RestTimerView: View {
         .padding(.horizontal)
         .onReceive(tick) { date in
             now = date
-            alertIfFinished()
-        }
-    }
-
-    /// The point of a watch rest timer is not having to look at it.
-    private func alertIfFinished() {
-        guard session.restTimer.isRunning else { return }
-        if session.restTimer.hasFinished(at: now) {
-            if !didAlert {
-                WKInterfaceDevice.current().play(.notification)
-                didAlert = true
-            }
-        } else {
-            didAlert = false
         }
     }
 }

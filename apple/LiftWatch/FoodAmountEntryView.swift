@@ -11,6 +11,7 @@ struct FoodAmountEntryView: View {
 
     @State private var amount: Double = 100
     @State private var meal: FoodLogMeal = .forHour(Calendar.current.component(.hour, from: .now))
+    @State private var logged = false
 
     private var unit: ServingUnit { session.servingUnit }
     private var step: Double { unit == .grams ? 5 : 0.5 }
@@ -65,11 +66,13 @@ struct FoodAmountEntryView: View {
                     } else {
                         session.foodLog.recordSkipped()
                     }
-                    dismiss()
+                    logged = true
                 }
+                .disabled(logged)
             }
         }
         .navigationTitle(item.displayName)
+        .loggedConfirmation(isPresented: logged) { dismiss() }
         .onAppear(perform: seedFromLastAmount)
     }
 

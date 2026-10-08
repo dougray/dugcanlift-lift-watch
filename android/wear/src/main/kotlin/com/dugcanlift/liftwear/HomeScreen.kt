@@ -5,6 +5,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
+import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
 import androidx.wear.compose.material.*
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -58,8 +59,9 @@ import com.dugcanlift.liftkit.totalSetCount
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-    Scaffold(timeText = { TimeText() }) {
-        ScalingLazyColumn(modifier = Modifier.fillMaxSize()) {
+    val list = rememberScalingLazyListState()
+    Scaffold(timeText = { TimeText() }, positionIndicator = { PositionIndicator(scalingLazyListState = list) }) {
+        ScalingLazyColumn(modifier = Modifier.fillMaxSize(), state = list) {
             item { ListHeader { Text("LIFT") } }
 
             // A workout in progress owns the top of the screen: it is the thing the lifter came back
