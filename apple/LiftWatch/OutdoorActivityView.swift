@@ -4,9 +4,8 @@ import SwiftUI
 
 /// Live stats screen for a Run or Hike in progress. No map — per the design
 /// spec, the watch's job is elapsed time / distance / pace ticking plus a
-/// Finish/Discard control, matching this app's minimal-chrome `List`-based
-/// screens (`WorkoutView.swift`/`SummaryView.swift`) rather than introducing
-/// a different visual language for outdoor activities.
+/// Finish/Discard control. Metrics and controls are separate vertical pages
+/// (see `body`), and both controls confirm before acting.
 struct OutdoorActivityView: View {
     @EnvironmentObject private var recorder: OutdoorActivityRecorder
     @EnvironmentObject private var library: OutdoorActivityLibrary
@@ -20,41 +19,98 @@ struct OutdoorActivityView: View {
         session.unit == .kilograms ? .kilometers : .miles
     }
 
+    @State private var confirmingFinish = false
+    @State private var confirmingDiscard = false
+    /// Scales with the wearer's text size.
+    @ScaledMetric(relativeTo: .largeTitle) private var timeSize: CGFloat = 34
+    @ScaledMetric(relativeTo: .title2) private var metricSize: CGFloat = 22
+
+    /// Two vertical pages, the way watchOS workout apps are laid out: the
+    /// numbers a runner glances at, big, on the first; Finish and Discard a
+    /// swipe away on the second, so neither is hit by accident mid-stride.
     var body: some View {
+        TabView {
+            metricsPage
+            controlsPage
+        }
+        .tabViewStyle(.verticalPage)
+        .navigationTitle(recorder.activity?.activityType.displayName ?? "Activity")
+        .confirmationDialog("Finish this \(activityNoun)?", isPresented: $confirmingFinish,
+                            titleVisibility: .visible) {
+            Button("Finish") { finish() }
+            Button("Keep Going", role: .cancel) {}
+        } message: {
+            Text("It's saved to this watch and sent to Health.")
+        }
+        .confirmationDialog("Discard this \(activityNoun)?", isPresented: $confirmingDiscard,
+                            titleVisibility: .visible) {
+            Button("Discard", role: .destructive) { recorder.discard() }
+            Button("Keep It", role: .cancel) {}
+        } message: {
+            Text("The route will not be saved.")
+        }
+    }
+
+    private var activityNoun: String {
+        switch recorder.activity?.activityType {
+        case .hike: return "hike"
+        default: return "run"
+        }
+    }
+
+    private var metricsPage: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 6) {
+                if recorder.authorizationStatus == .denied || recorder.authorizationStatus == .restricted {
+                    Warning("Location access is off — grant it in Settings to record a route.")
+                }
+                if library.lastExportError != nil {
+                    Warning("Couldn't save to Health — will keep local data but won't retry automatically.")
+                }
+
+                Text(Self.formatElapsed(recorder.elapsedSeconds))
+                    .font(.system(size: timeSize, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                    .minimumScaleFactor(0.6)
+                    .lineLimit(1)
+                    .accessibilityLabel("Time \(Self.formatElapsed(recorder.elapsedSeconds))")
+
+                metric(formatDistance(recorder.distanceMeters), label: "Distance")
+                metric(formatPace(recorder.averagePaceSecondsPerKilometer), label: "Pace")
+                if recorder.elevationGainMeters > 0 {
+                    metric(formatElevation(recorder.elevationGainMeters), label: "Elevation Gain")
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 4)
+        }
+    }
+
+    private func metric(_ value: String, label: String) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(value)
+                .font(.system(size: metricSize, weight: .medium, design: .rounded))
+                .monospacedDigit()
+                .minimumScaleFactor(0.7)
+                .lineLimit(1)
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(DclTheme.muted)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var controlsPage: some View {
         List {
-            if recorder.authorizationStatus == .denied || recorder.authorizationStatus == .restricted {
-                Section {
-                    Text("Location access is off — grant it in Settings to record a route.")
-                        .foregroundStyle(DclTheme.accent)
-                }
-            }
-
-            if library.lastExportError != nil {
-                Section {
-                    Text("Couldn't save to Health — will keep local data but won't retry automatically.")
-                        .foregroundStyle(DclTheme.accent)
-                }
-            }
-
             Section {
-                LabeledValue("Time", Self.formatElapsed(recorder.elapsedSeconds))
-                LabeledValue("Distance", formatDistance(recorder.distanceMeters))
-                LabeledValue("Pace", formatPace(recorder.averagePaceSecondsPerKilometer))
-            }
-
-            if recorder.elevationGainMeters > 0 {
-                Section {
-                    LabeledValue("Elevation Gain", Self.formatElevation(recorder.elevationGainMeters))
-                }
-            }
-
-            Section {
-                Button("Finish") { finish() }
+                Button("Finish") { confirmingFinish = true }
                     .buttonStyle(.borderedProminent)
-                Button("Discard", role: .destructive) { recorder.discard() }
+            }
+            // Its own section, away from Finish: a whole route is lost on it.
+            Section {
+                Button("Discard", role: .destructive) { confirmingDiscard = true }
             }
         }
-        .navigationTitle(recorder.activity?.activityType.displayName ?? "Activity")
     }
 
     /// Finishing hands the recorder's own returned snapshot straight to
@@ -116,8 +172,30 @@ struct OutdoorActivityView: View {
         return String(format: "%d:%02d /%@", total / 60, total % 60, distanceUnit.abbreviation)
     }
 
-    private static func formatElevation(_ meters: Double) -> String {
-        String(format: "%.0f m", meters)
+    /// Feet for a miles user, metres otherwise — the same derived unit
+    /// distance and pace already follow.
+    private func formatElevation(_ meters: Double) -> String {
+        distanceUnit == .miles
+            ? String(format: "%.0f ft", meters * 3.28084)
+            : String(format: "%.0f m", meters)
+    }
+}
+
+/// A warning someone has to read and act on. The text is in the text colour
+/// (the accent is 3.4:1 on the ground); the accent marks the glyph only.
+private struct Warning: View {
+    let message: String
+    init(_ message: String) { self.message = message }
+
+    var body: some View {
+        Label {
+            Text(message)
+                .font(.caption2)
+                .foregroundStyle(DclTheme.text)
+        } icon: {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(DclTheme.accent)
+        }
     }
 }
 

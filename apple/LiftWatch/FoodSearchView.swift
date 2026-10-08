@@ -32,6 +32,7 @@ struct LibraryFoodAmountView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var grams: Double = 100
     @State private var meal: FoodLogMeal = .forHour(Calendar.current.component(.hour, from: .now))
+    @State private var logged = false
 
     var body: some View {
         List {
@@ -39,9 +40,15 @@ struct LibraryFoodAmountView: View {
                 // 2000 g, the same ceiling the recents screen has always used —
                 // see `AmountLimits`. This stopped at 1000 g, so a 1.5 kg cook-up
                 // was loggable only if the food happened to come from the phone.
+                //
+                // The Crown dials it, exactly like `FoodAmountEntryView` and
+                // the set weight: 500 g was 80 taps of +.
                 Stepper(value: $grams, in: AmountLimits.minGrams...AmountLimits.maxGrams, step: 5) {
-                    Text("\(Int(grams)) g")
+                    LabeledValue("Amount", "\(Int(grams)) g")
                 }
+                .focusable()
+                .digitalCrownRotation($grams, from: AmountLimits.minGrams,
+                                      through: AmountLimits.maxGrams, by: 5)
             }
             Section {
                 Picker("Meal", selection: $meal) {
@@ -53,10 +60,12 @@ struct LibraryFoodAmountView: View {
             Section {
                 Button("Log") {
                     session.recordLocally(food: food, grams: grams, meal: meal)
-                    dismiss()
+                    logged = true
                 }
+                .disabled(logged)
             }
         }
         .navigationTitle(food.name)
+        .loggedConfirmation(isPresented: logged) { dismiss() }
     }
 }

@@ -10,6 +10,9 @@ import SwiftUI
 /// order at all — free entry is exactly the three pages it always was.
 struct NowView: View {
     @EnvironmentObject private var session: WorkoutSessionModel
+    /// Scales with the wearer's text size; `minimumScaleFactor` still keeps
+    /// a long prescription on one line.
+    @ScaledMetric(relativeTo: .largeTitle) private var prescriptionSize: CGFloat = 34
 
     var body: some View {
         ScrollView {
@@ -43,7 +46,7 @@ struct NowView: View {
             // is never a zero here: "5 reps" is a set with no weight
             // prescribed, and "—" is a set that prescribes nothing at all.
             Text(guided.currentPrescription?.headline(unit: session.unit) ?? "—")
-                .font(.system(size: 34, weight: .semibold, design: .rounded))
+                .font(.system(size: prescriptionSize, weight: .semibold, design: .rounded))
                 .monospacedDigit()
                 .minimumScaleFactor(0.6)
                 .lineLimit(1)
@@ -108,10 +111,17 @@ struct HeartRateLabel: View {
 
     var body: some View {
         if let bpm = heartRate.currentBpm {
-            Label("\(Int(bpm.rounded())) bpm", systemImage: "heart.fill")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(DclTheme.accent)
-                .monospacedDigit()
+            // The accent is 3.4:1 on the ground — fine for the heart glyph,
+            // not for the number someone reads.
+            Label {
+                Text("\(Int(bpm.rounded())) bpm")
+                    .foregroundStyle(DclTheme.text)
+            } icon: {
+                Image(systemName: "heart.fill")
+                    .foregroundStyle(DclTheme.accent)
+            }
+            .font(.caption.weight(.semibold))
+            .monospacedDigit()
         }
     }
 }
