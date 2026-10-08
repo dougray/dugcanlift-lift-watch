@@ -111,14 +111,14 @@ struct HeartRateLabel: View {
 
     var body: some View {
         if let bpm = heartRate.currentBpm {
-            // The accent is 3.4:1 on the ground — fine for the heart glyph,
-            // not for the number someone reads.
+            // The number someone reads is in the text colour; the glyph takes
+            // the readable rust (5.09:1 on the ground; the fill rust is 3.4:1).
             Label {
                 Text("\(Int(bpm.rounded())) bpm")
                     .foregroundStyle(DclTheme.text)
             } icon: {
                 Image(systemName: "heart.fill")
-                    .foregroundStyle(DclTheme.accent)
+                    .foregroundStyle(DclTheme.accentText)
             }
             .font(.caption.weight(.semibold))
             .monospacedDigit()

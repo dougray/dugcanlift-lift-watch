@@ -31,6 +31,8 @@ struct RestTimerView: View {
             if session.restTimer.isRunning {
                 Button("Skip") { session.restTimer.stop() }
                     .buttonStyle(.bordered)
+                    // A bordered label is drawn in the tint: readable rust, not the fill.
+                    .tint(DclTheme.accentText)
             } else {
                 Button("Start Rest") { session.restTimer.start() }
                     .buttonStyle(.borderedProminent)
