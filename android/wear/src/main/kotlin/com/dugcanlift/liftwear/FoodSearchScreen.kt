@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
+import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
 import androidx.wear.compose.foundation.lazy.*
 import androidx.wear.compose.material.*
 import androidx.wear.input.RemoteInputIntentHelper
@@ -30,8 +31,11 @@ import kotlinx.coroutines.Deferred
         hits = library.await().search(query)
     }
     val results = hits
-    Scaffold(timeText = { TimeText() }) {
-        ScalingLazyColumn(modifier = Modifier.fillMaxSize()) {
+    val list = rememberScalingLazyListState()
+    // Results run past the bezel: the indicator is what says there is more below.
+    Scaffold(timeText = { TimeText() }, positionIndicator = { PositionIndicator(scalingLazyListState = list) },
+             vignette = { Vignette(vignettePosition = VignettePosition.TopAndBottom) }) {
+        ScalingLazyColumn(modifier = Modifier.fillMaxSize(), state = list) {
             item { Chip(onClick = {
                 val intent = RemoteInputIntentHelper.createActionRemoteInputIntent()
                 RemoteInputIntentHelper.putRemoteInputsExtra(intent, listOf(RemoteInput.Builder(KEY).setLabel("Food").build()))

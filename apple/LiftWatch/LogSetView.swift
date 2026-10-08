@@ -1,5 +1,6 @@
 import LiftKit
 import SwiftUI
+import WatchKit
 
 /// Digital Crown entry rather than a keyboard — the user is holding a bar.
 struct LogSetView: View {
@@ -11,6 +12,7 @@ struct LogSetView: View {
     @State private var weight: Double = 135
     @State private var reps: Int = 5
     @State private var rpe: Double = 8
+    @State private var logged = false
 
     private var exercise: DraftExercise? { session.draft?.exercise(exerciseID) }
     private var prescription: PrescribedSet? { session.prescription(for: exerciseID) }
@@ -56,12 +58,21 @@ struct LogSetView: View {
             Section {
                 Button("Log Set") {
                     session.logSet(to: exerciseID, weight: weight, reps: reps, rpe: rpe)
-                    dismiss()
+                    logged = true
                 }
+                .disabled(logged)
             }
         }
         .navigationTitle(exercise?.name ?? "Set")
-        .onAppear(perform: seed)
+        .onAppear {
+            // Opening an exercise out of order moves the guided session
+            // with it, so the prescription below belongs to this exercise.
+            // Done here rather than in a tap gesture on the row, because a
+            // VoiceOver double-tap activates the link and skips gestures.
+            session.focusGuidedSession(on: exerciseID)
+            seed()
+        }
+        .loggedConfirmation(isPresented: logged) { dismiss() }
     }
 
     /// What the fields start at.
@@ -116,6 +127,50 @@ struct LogSetView: View {
         return rounded == rounded.rounded()
             ? String(Int(rounded))
             : String(format: "%.1f", rounded)
+    }
+}
+
+/// A checkmark and a success tap after a log, then `onDone` (a dismiss).
+///
+/// On a glance-length interaction a silent pop reads the same as backing out,
+/// which is how foods and sets end up logged twice.
+private struct LoggedConfirmation: ViewModifier {
+    let isPresented: Bool
+    let onDone: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .overlay {
+                if isPresented {
+                    ZStack {
+                        DclTheme.background.ignoresSafeArea()
+                        VStack(spacing: 6) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 40))
+                                .foregroundStyle(DclTheme.accent2)
+                            Text("Logged")
+                                .font(.headline)
+                        }
+                    }
+                    .accessibilityElement(children: .combine)
+                    .transition(.opacity)
+                }
+            }
+            .animation(.easeOut(duration: 0.15), value: isPresented)
+            .onChange(of: isPresented) { _, presented in
+                guard presented else { return }
+                WKInterfaceDevice.current().play(.success)
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(700))
+                    onDone()
+                }
+            }
+    }
+}
+
+extension View {
+    func loggedConfirmation(isPresented: Bool, onDone: @escaping () -> Void) -> some View {
+        modifier(LoggedConfirmation(isPresented: isPresented, onDone: onDone))
     }
 }
 

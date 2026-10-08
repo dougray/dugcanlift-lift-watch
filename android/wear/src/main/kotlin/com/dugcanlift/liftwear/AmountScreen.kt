@@ -7,8 +7,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.rotary.onRotaryScrollEvent
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
+import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
 import androidx.wear.compose.material.*
 import com.dugcanlift.liftkit.ServingUnit
 import kotlin.math.round
@@ -90,26 +97,58 @@ internal fun clampedAmount(unit: ServingUnit, requested: Double): Pair<Double, D
         draft.grams = gramsFor(next, next.fromGrams(draft.grams))
         amount = next.fromGrams(draft.grams)
     }
-    Scaffold(timeText = { TimeText() }) {
-        Column(Modifier.fillMaxSize().padding(12.dp)
+    val unitName = if (unit == ServingUnit.GRAMS) "grams" else "ounces"
+    val stepText = "${amountLabel(unit, step)} $unitName"
+    val list = rememberScalingLazyListState(initialCenterItemIndex = 1)
+    // A scrolling list, not a fixed centred Column: name + big number + kcal + button row + Next was
+    // ~238 dp against ~192 dp on a small round display, which clipped Next -- the only way forward.
+    // The rotary input still sets the amount (the list's own rotary scrolling is switched off), and
+    // touch scrolls the list on the screens where it does not fit.
+    Scaffold(timeText = { TimeText() }, positionIndicator = { PositionIndicator(scalingLazyListState = list) },
+             vignette = { Vignette(vignettePosition = VignettePosition.TopAndBottom) }) {
+        ScalingLazyColumn(
+            modifier = Modifier.fillMaxSize()
                 .onRotaryScrollEvent { set(amount + if (it.verticalScrollPixels > 0) step else -step); true }
                 .focusRequester(focus).focusable(),
-               horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+            state = list,
+            rotaryScrollableBehavior = null,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
             // Extra horizontal padding: above the vertical centre of a round display the chord is
             // narrower than the full diameter, so long USDA names need more inset than a square screen would.
-            Text(food.name, maxLines = 2, overflow = TextOverflow.Ellipsis, color = DclColors.Muted,
-                 modifier = Modifier.padding(horizontal = 20.dp))
-            Text("${amountLabel(unit, amount)} ${if (unit == ServingUnit.GRAMS) "g" else "oz"}", style = MaterialTheme.typography.display2)
-            Text("${(food.kcal * draft.grams / 100.0).roundToInt()} kcal", color = DclColors.Text)
-            Row {
-                CompactButton(onClick = { set(amount - step) }) { Text("−") }
-                Spacer(Modifier.width(8.dp))
-                CompactButton(onClick = { set(amount + step) }) { Text("+") }
-                Spacer(Modifier.width(8.dp))
-                CompactChip(onClick = { toggleUnit() }, label = { Text(if (unit == ServingUnit.GRAMS) "oz" else "g") })
+            item {
+                Text(food.name, maxLines = 2, overflow = TextOverflow.Ellipsis, color = DclColors.Muted,
+                     textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 20.dp))
             }
-            Spacer(Modifier.height(8.dp))
-            Chip(onClick = onNext, label = { Text("Next") }, colors = ChipDefaults.primaryChipColors())
+            item {
+                // Announced when the rotary input or +/- changes it, which TalkBack otherwise skips.
+                Text("${amountLabel(unit, amount)} ${if (unit == ServingUnit.GRAMS) "g" else "oz"}",
+                     style = MaterialTheme.typography.display2,
+                     modifier = Modifier.semantics {
+                         contentDescription = "${amountLabel(unit, amount)} $unitName"
+                         liveRegion = LiveRegionMode.Polite
+                     })
+            }
+            item { Text("${(food.kcal * draft.grams / 100.0).roundToInt()} kcal", color = DclColors.Text) }
+            item {
+                Row {
+                    CompactButton(onClick = { set(amount - step) }) {
+                        Text("−", Modifier.semantics { contentDescription = "Decrease by $stepText" })
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    CompactButton(onClick = { set(amount + step) }) {
+                        Text("+", Modifier.semantics { contentDescription = "Increase by $stepText" })
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    // The label names the target unit, so say it as an action rather than a reading.
+                    CompactChip(onClick = { toggleUnit() }, label = {
+                        Text(if (unit == ServingUnit.GRAMS) "oz" else "g", Modifier.semantics {
+                            contentDescription = if (unit == ServingUnit.GRAMS) "Switch to ounces" else "Switch to grams"
+                        })
+                    })
+                }
+            }
+            item { Chip(onClick = onNext, label = { Text("Next") }, colors = ChipDefaults.primaryChipColors()) }
         }
     }
 }

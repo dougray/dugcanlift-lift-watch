@@ -2,7 +2,13 @@ package com.dugcanlift.liftwear
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.style.TextAlign
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
+import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
+import androidx.wear.compose.material.dialog.Confirmation
+import androidx.wear.compose.material.dialog.Dialog
 import androidx.wear.compose.foundation.lazy.*
 import androidx.wear.compose.material.*
 import com.dugcanlift.liftkit.*
@@ -35,18 +41,36 @@ fun defaultMeal(hour: Int): FoodLogMeal = when {
 @Composable fun MealScreen(draft: Draft, log: StandaloneFoodLog, onDone: () -> Unit) {
     val food = draft.food ?: return
     val suggested = remember { defaultMeal(LocalTime.now().hour) }
-    Scaffold(timeText = { TimeText() }) {
-        ScalingLazyColumn(modifier = Modifier.fillMaxSize()) {
+    val list = rememberScalingLazyListState()
+    val haptics = LocalHapticFeedback.current
+    // A silent pop back to Home reads the same as backing out, which is how a food gets logged
+    // twice. Show a short "Logged" confirmation with a tick first, then leave.
+    var logged by remember { mutableStateOf(false) }
+    var left by remember { mutableStateOf(false) }
+    fun leave() {
+        if (left) return
+        left = true
+        onDone()
+        draft.food = null; draft.grams = 100.0
+    }
+    Scaffold(timeText = { TimeText() }, positionIndicator = { PositionIndicator(scalingLazyListState = list) }) {
+        ScalingLazyColumn(modifier = Modifier.fillMaxSize(), state = list) {
             item { ListHeader { Text("Which meal?") } }
             items(FoodLogMeal.values().toList()) { meal ->
                 Chip(onClick = {
+                    if (logged) return@Chip
                     log.append(LoggedFood(food, draft.grams, meal, System.currentTimeMillis() / 1000))
-                    draft.food = null; draft.grams = 100.0
-                    onDone()
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    logged = true
                 }, label = { Text(meal.name.lowercase().replaceFirstChar { it.uppercase() }) },
                    colors = if (meal == suggested) ChipDefaults.primaryChipColors() else ChipDefaults.secondaryChipColors(),
                    modifier = Modifier.fillMaxWidth())
             }
+        }
+    }
+    Dialog(showDialog = logged, onDismissRequest = { leave() }) {
+        Confirmation(onTimeout = { leave() }, durationMillis = 1200L) {
+            Text("Logged", textAlign = TextAlign.Center)
         }
     }
 }
