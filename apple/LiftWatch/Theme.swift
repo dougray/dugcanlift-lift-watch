@@ -16,7 +16,12 @@ enum DclTheme {
     static let surface    = Color(red: 0x24 / 255, green: 0x22 / 255, blue: 0x20 / 255)
     static let text       = Color(red: 0xED / 255, green: 0xE7 / 255, blue: 0xDD / 255)
     static let muted      = Color(red: 0xA3 / 255, green: 0x9C / 255, blue: 0x8E / 255)
+    /// The brand rust as a fill: prominent buttons, progress, the app tint.
     static let accent     = Color(red: 0xC1 / 255, green: 0x44 / 255, blue: 0x2C / 255)
+    /// The brand rust wherever it is read -- text, glyphs, foreground tints.
+    /// `accent` is 3.4:1 on the ground; this is the Android kit's ACCENT_TEXT,
+    /// #E0674D, 5.09:1 on the ground (6.22:1 on black, 4.69:1 on `surface`).
+    static let accentText = Color(red: 0xE0 / 255, green: 0x67 / 255, blue: 0x4D / 255)
     static let accent2    = Color(red: 0x7C / 255, green: 0x8B / 255, blue: 0x7A / 255)
     static let rule       = Color(red: 0x3A / 255, green: 0x37 / 255, blue: 0x33 / 255)
     static let onAccent   = Color(red: 0xF7 / 255, green: 0xF1 / 255, blue: 0xE8 / 255)
