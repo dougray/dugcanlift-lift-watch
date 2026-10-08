@@ -181,8 +181,8 @@ struct OutdoorActivityView: View {
     }
 }
 
-/// A warning someone has to read and act on. The text is in the text colour
-/// (the accent is 3.4:1 on the ground); the accent marks the glyph only.
+/// A warning someone has to read and act on. The text is in the text colour;
+/// the glyph takes the readable rust (5.09:1 on the ground; the fill rust is 3.4:1).
 private struct Warning: View {
     let message: String
     init(_ message: String) { self.message = message }
@@ -194,7 +194,7 @@ private struct Warning: View {
                 .foregroundStyle(DclTheme.text)
         } icon: {
             Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(DclTheme.accent)
+                .foregroundStyle(DclTheme.accentText)
         }
     }
 }
