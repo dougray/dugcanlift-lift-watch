@@ -21,16 +21,24 @@
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
 
-    <!-- The guided session. BODY_SENSORS is heart rate through Health Services
+    <!-- The guided session. Heart rate through Health Services
          (androidx.health:health-services-client), an AndroidX artifact that binds to the watch's own
          Health Services system package. It is NOT Play Services: its whole dependency tree was
          resolved and read before it was added, and PhoneLinkManifestTest asserts that neither this
          manifest nor the build file has ever named a Play Services coordinate. A refused permission
          costs the heart rate and nothing else: sets are logged either way.
 
+         Which permission is the watch's Android version. Wear OS 6 (API 36) replaced BODY_SENSORS
+         with the granular health permission READ_HEART_RATE for any app targeting 36 or higher,
+         which this one does, so BODY_SENSORS stops at 35 and READ_HEART_RATE covers 36 on
+         (developer.android.com/health-and-fitness/guides/health-services/permissions).
+         HeartRateRecorder.heartRatePermission asks for the one this watch declares. A Wear app
+         needs no privacy-policy activity for it; that requirement is for phone apps only.
+
          VIBRATE is the buzz at the end of a rest interval, which is the entire reason a rest timer
          on a wrist is worth having. Install-time, so it asks the user nothing. -->
-    <uses-permission android:name="android.permission.BODY_SENSORS" />
+    <uses-permission android:name="android.permission.BODY_SENSORS" android:maxSdkVersion="35" />
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
     <uses-permission android:name="android.permission.VIBRATE" />
 
     <application

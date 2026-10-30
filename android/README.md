@@ -102,8 +102,12 @@ and the prescription formatting. `:wear` lays them out and owns the radio.
   neither the manifest nor the build file has ever named a Play Services
   coordinate. `HeartRateRecorder` uses the library's own `suspend` extensions
   rather than the `ListenableFuture` ones, so Guava is not on this module's
-  compile classpath. A refused `BODY_SENSORS` costs the bpm line and nothing
-  else: sets are logged either way.
+  compile classpath. The permission is `BODY_SENSORS` up to Wear OS 5.1 and
+  `android.permission.health.READ_HEART_RATE` from Wear OS 6 (API 36), which
+  replaced it for an app targeting 36 or higher; the manifest declares each for
+  its versions and `HeartRateRecorder.heartRatePermission` asks for the one the
+  watch uses. A refusal costs the bpm line and nothing else: sets are logged
+  either way.
 
 **Known gaps**, deliberately: nothing holds the link through a screen-off session
 (that wants a `connectedDevice` foreground service, which is its own change with

@@ -3,6 +3,7 @@ package com.dugcanlift.liftwear
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.Build
 import androidx.health.services.client.ExerciseUpdateCallback
 import androidx.health.services.client.HealthServices
 import androidx.health.services.client.clearUpdateCallback
@@ -39,7 +40,13 @@ import kotlinx.coroutines.launch
  * classpath and never reaches the APK's own code. `PhoneLinkManifestTest` still guards the manifest,
  * and there is still no `INTERNET` permission.
  *
- * **Nothing here is load-bearing.** A refused `BODY_SENSORS`, a watch whose Health Services is too
+ * **Which permission depends on the watch.** Wear OS 6 (API 36) moved heart rate from `BODY_SENSORS`
+ * to the granular `android.permission.health.READ_HEART_RATE` for any app targeting API 36 or higher,
+ * and this one targets 37: on a Wear OS 6 watch `BODY_SENSORS` is not even declared (the manifest
+ * caps it at 35) and would grant Health Services nothing. [heartRatePermission] picks the one the
+ * running watch uses, and both the check and the request go through it.
+ *
+ * **Nothing here is load-bearing.** A refused heart-rate permission, a watch whose Health Services is too
  * old, an exercise type it will not start: each costs the heart rate and the background runtime, never
  * the workout. Sets go into the `WorkoutDraft` either way.
  *
@@ -70,7 +77,7 @@ class HeartRateRecorder(context: Context) {
         get() = if (samples == 0 || highest <= 0.0) null else (total / samples).toInt() to highest.toInt()
 
     val hasPermission: Boolean
-        get() = appContext.checkSelfPermission(Manifest.permission.BODY_SENSORS) == PackageManager.PERMISSION_GRANTED
+        get() = appContext.checkSelfPermission(heartRatePermission()) == PackageManager.PERMISSION_GRANTED
 
     private val callback = object : ExerciseUpdateCallback {
         override fun onRegistered() = Unit
@@ -138,7 +145,23 @@ class HeartRateRecorder(context: Context) {
     }
 
     companion object {
-        /** `BODY_SENSORS` is what Health Services needs to hand over a heart rate. */
-        val runtimePermissions: Array<String> = arrayOf(Manifest.permission.BODY_SENSORS)
+        /**
+         * `HealthPermissions.READ_HEART_RATE`, written out: the constant is API 34's, and this app
+         * runs from API 30. Only ever asked for on API 36 and up.
+         */
+        const val READ_HEART_RATE = "android.permission.health.READ_HEART_RATE"
+
+        /**
+         * What Health Services needs to hand over a heart rate on a watch running [sdk]:
+         * `READ_HEART_RATE` from Wear OS 6 (API 36, Android 16), `BODY_SENSORS` before it. The
+         * manifest declares each for exactly those versions, so the app never asks for one the
+         * watch would refuse to grant.
+         */
+        fun heartRatePermission(sdk: Int = Build.VERSION.SDK_INT): String =
+            if (sdk >= Build.VERSION_CODES.BAKLAVA) READ_HEART_RATE else Manifest.permission.BODY_SENSORS
+
+        /** The heart-rate permission for this watch, as the runtime request takes it. */
+        val runtimePermissions: Array<String>
+            get() = arrayOf(heartRatePermission())
     }
 }
