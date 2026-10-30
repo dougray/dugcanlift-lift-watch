@@ -36,8 +36,10 @@ class PermissionsPinTest {
         "android.permission.BLUETOOTH_CONNECT",
         "android.permission.BLUETOOTH maxSdkVersion=30",
         "android.permission.BLUETOOTH_ADMIN maxSdkVersion=30",
-        // The guided session's heart rate, through Health Services (HeartRateRecorder).
-        "android.permission.BODY_SENSORS",
+        // The guided session's heart rate, through Health Services (HeartRateRecorder): BODY_SENSORS
+        // up to Wear OS 5.1, the granular READ_HEART_RATE from Wear OS 6 (API 36), which replaced it.
+        "android.permission.BODY_SENSORS maxSdkVersion=35",
+        "android.permission.health.READ_HEART_RATE",
         // The buzz at the end of a rest. Install-time: it asks the person nothing.
         "android.permission.VIBRATE",
         // Not a request to the user or to the system: androidx.core declares this signature-level
