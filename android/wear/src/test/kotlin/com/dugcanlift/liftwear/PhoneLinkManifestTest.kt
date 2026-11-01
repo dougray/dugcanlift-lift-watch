@@ -80,7 +80,11 @@ class PhoneLinkManifestTest {
     }
 
     @Test fun `the watch may read a heart rate, and works without one`() {
-        assertTrue(permissions.containsKey("android.permission.BODY_SENSORS"))
+        // BODY_SENSORS up to Wear OS 5.1 (API 35); READ_HEART_RATE from Wear OS 6 (API 36), where it
+        // replaced BODY_SENSORS for an app targeting 36 or higher.
+        assertEquals("35", permissions.getValue("android.permission.BODY_SENSORS").getAttributeNS(ANDROID, "maxSdkVersion"))
+        val heartRate = requireNotNull(permissions[HeartRateRecorder.READ_HEART_RATE]) { "READ_HEART_RATE is missing" }
+        assertEquals("", heartRate.getAttributeNS(ANDROID, "maxSdkVersion"))
         // The buzz at the end of a rest interval. Install-time, so it asks nothing.
         assertTrue(permissions.containsKey("android.permission.VIBRATE"))
         val sensor = named("uses-feature")["android.hardware.sensor.heartrate"]
