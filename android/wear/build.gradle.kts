@@ -1,3 +1,4 @@
+import com.android.build.api.artifact.SingleArtifact
 import java.util.Properties
 
 plugins {
@@ -61,7 +62,29 @@ kotlin { jvmToolchain(17) }
 // path across as a system property instead of duplicating the files.
 tasks.withType<Test>().configureEach {
     systemProperty("liftkitFixturesDir", rootProject.projectDir.resolve("liftkit/src/test/resources/fixtures").absolutePath)
+    // PhoneLinkManifestTest reads the manifest as a file rather than through Robolectric, so it
+    // asserts about what ships. Declaring it an input means a manifest-only edit reruns the tests
+    // instead of being reported as up to date -- the same arrangement LIFT Android uses.
+    inputs.file("src/main/AndroidManifest.xml").withPathSensitivity(PathSensitivity.RELATIVE)
 }
+// PermissionsPinTest pins the release APK's permissions to the privacy page. It reads the release
+// variant's MERGED manifest -- this app's own plus every library's (Health Services, Compose for
+// Wear OS), which is what an installed APK declares -- rather than src/main's, so a dependency that
+// adds a permission is caught too. The file is an input of every unit test task, which makes
+// testDebugUnitTest run processReleaseManifest first and rerun when a dependency bump changes the
+// merged result.
+androidComponents {
+    onVariants(selector().withBuildType("release")) { variant ->
+        val merged = variant.artifacts.get(SingleArtifact.MERGED_MANIFEST)
+        tasks.withType<Test>().configureEach {
+            inputs.file(merged).withPropertyName("releaseMergedManifest").withPathSensitivity(PathSensitivity.NONE)
+            jvmArgumentProviders.add(CommandLineArgumentProvider {
+                listOf("-DreleaseMergedManifest=${merged.get().asFile.absolutePath}")
+            })
+        }
+    }
+}
+
 dependencies {
     implementation(project(":liftkit"))
     implementation(platform(libs.androidx.compose.bom))
@@ -69,6 +92,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.wear.input)
+    implementation(libs.androidx.health.services.client)
     implementation(libs.wear.compose.material)
     implementation(libs.wear.compose.foundation)
     implementation(libs.wear.compose.navigation)

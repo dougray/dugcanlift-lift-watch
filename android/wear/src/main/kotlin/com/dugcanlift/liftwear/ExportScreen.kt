@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.sp
 import androidx.wear.compose.foundation.pager.HorizontalPager
 import androidx.wear.compose.foundation.pager.rememberPagerState
 import androidx.wear.compose.material.*
+import androidx.wear.compose.material.dialog.Alert
 import androidx.wear.compose.material.dialog.Dialog
 import com.dugcanlift.liftkit.*
 import kotlinx.coroutines.Dispatchers
@@ -72,6 +73,18 @@ internal fun captionReserveFor(total: Int, captionReservePx: Int): Int = if (tot
     // the swipe-right-from-the-left-edge back gesture, leaving paging forward through every code as
     // the only way home. PagerDefaults.gestureInclusion (the default here) reserves that left edge
     // zone for swipe-to-dismiss and keeps the rest of the horizontal drag for the pager.
+    // How many pages there are, and that a final "Scanned it?" page follows the codes. Shown only
+    // on the last code and the confirm page: on earlier codes it would sit in the code's quiet zone,
+    // and module area is what decides whether a phone can focus.
+    val showIndicator = pager.currentPage >= codes.size - 1
+    val indicatorState = remember(pager) {
+        object : PageIndicatorState {
+            override val pageOffset: Float get() = pager.currentPageOffsetFraction
+            override val selectedPage: Int get() = pager.currentPage
+            override val pageCount: Int get() = pager.pageCount
+        }
+    }
+    Box(Modifier.fillMaxSize()) {
     HorizontalPager(state = pager, modifier = Modifier.fillMaxSize()) { page ->
         if (page < codes.size) {
             // Full-bleed white background is deliberate: it maximises quiet-zone contrast on AMOLED.
@@ -109,17 +122,23 @@ internal fun captionReserveFor(total: Int, captionReservePx: Int): Int = if (tot
                 Spacer(Modifier.height(4.dp))
                 Chip(onClick = onDone, label = { Text("Keep them") }, colors = ChipDefaults.secondaryChipColors())
             }
+            // Wear's Alert, not a hand-built Column: it scrolls, so Clear and Keep stay reachable on
+            // a small round display and at large font scales.
             Dialog(showDialog = confirmingClear, onDismissRequest = { confirmingClear = false }) {
-                Column(Modifier.fillMaxSize().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                    Text(CLEAR_LOG_TITLE, style = MaterialTheme.typography.title3, textAlign = TextAlign.Center, color = DclColors.Text)
-                    Spacer(Modifier.height(8.dp))
-                    Text(CLEAR_LOG_MESSAGE, textAlign = TextAlign.Center, color = DclColors.Muted)
-                    Spacer(Modifier.height(8.dp))
-                    Chip(onClick = { confirmingClear = false; log.remove(shown); onDone() }, label = { Text("Clear") }, colors = ChipDefaults.primaryChipColors())
-                    Spacer(Modifier.height(4.dp))
-                    Chip(onClick = { confirmingClear = false }, label = { Text("Keep") }, colors = ChipDefaults.secondaryChipColors())
+                Alert(
+                    title = { Text(CLEAR_LOG_TITLE, textAlign = TextAlign.Center, color = DclColors.Text) },
+                    message = { Text(CLEAR_LOG_MESSAGE, textAlign = TextAlign.Center, color = DclColors.Muted) },
+                ) {
+                    item { Chip(onClick = { confirmingClear = false; log.remove(shown); onDone() }, label = { Text("Clear") },
+                                colors = ChipDefaults.primaryChipColors(), modifier = Modifier.fillMaxWidth()) }
+                    item { Chip(onClick = { confirmingClear = false }, label = { Text("Keep") },
+                                colors = ChipDefaults.secondaryChipColors(), modifier = Modifier.fillMaxWidth()) }
                 }
             }
         }
+    }
+    if (showIndicator) {
+        HorizontalPageIndicator(pageIndicatorState = indicatorState, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 2.dp))
+    }
     }
 }
