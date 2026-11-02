@@ -110,4 +110,16 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.kotlinx.serialization.json) // to read the decoded envelope
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+
+    // Guava is not this app's dependency. Health Services brings it in for `ListenableFuture`, and
+    // HeartRateRecorder uses the library's `suspend` extensions so that Guava stays off the compile
+    // classpath. Health Services 1.1.0 asks for 32.0.1-android, which has the CompactHashMap /
+    // CompactHashSet / MapMakerInternalMap deserialization advisory (fixed in 33.7.2). A constraint
+    // raises the version Gradle picks without adding a dependency, so the compile classpath is
+    // unchanged and nothing here can start calling Guava by accident.
+    constraints {
+        implementation(libs.guava) {
+            because("32.0.1-android from health-services-client has a deserialization advisory; 33.7.2 fixes it")
+        }
+    }
 }
