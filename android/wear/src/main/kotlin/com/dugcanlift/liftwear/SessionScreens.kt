@@ -69,6 +69,11 @@ fun SessionScreen(
                         Text(plan.positionText, style = MaterialTheme.typography.caption1)
                     }
                 }
+                // "Superset A · A1" over a grouped exercise: which group, and where in it, on one short
+                // line, so the name below keeps its two lines on a round screen.
+                plan.currentExerciseIndex?.let { plan.plan.groupLabels.getOrNull(it) }?.let { label ->
+                    item { SetTypeCaption(label.line) }
+                }
                 item {
                     Text(
                         text = exercise.displayName,
@@ -91,6 +96,9 @@ fun SessionScreen(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
                     )
                 }
+                // "Drop" or "Rest-pause" under the digits rather than inside them: the headline is one
+                // line at display size, and "185 x 5 · L drop" would not fit a round face.
+                plan.currentKind?.let { kind -> item { SetTypeCaption(kind.title) } }
                 plan.currentPrescription?.rpe?.let { rpe ->
                     item { SessionCaption("RPE ${PlanFormat.rpe(rpe)}") }
                 }
@@ -148,11 +156,13 @@ fun SessionScreen(
  * logged there travels with no `weightKg` at all rather than a zero somebody has to interpret.
  */
 @Composable
-fun LogSetScreen(session: SessionController, exerciseId: String, onLogged: () -> Unit) {
+fun LogSetScreen(session: SessionController, exerciseId: String, onLogged: (restStarted: Boolean) -> Unit) {
     val draft by session.draft.collectAsState()
     val unit by session.unit.collectAsState()
     val exercise = draft?.exercise(exerciseId) ?: return
     val prescription = session.prescription(exerciseId)
+    val kind = session.prescribedKind(exerciseId)
+    val groupLabel = session.groupLabel(exerciseId)
     val step = SetEntrySeed.step(unit)
 
     // Seeded once per exercise-and-set-count, so logging a set and coming back re-seeds from the set
@@ -198,7 +208,8 @@ fun LogSetScreen(session: SessionController, exerciseId: String, onLogged: () ->
         ) {
             item {
                 Text(
-                    text = exercise.displayName,
+                    // "A1 · Bench Press (Barbell)" in a superset: LIFT Android's heading.
+                    text = SetTypeLabels.heading(exercise.displayName, groupLabel),
                     style = MaterialTheme.typography.caption1,
                     color = DclColors.Muted,
                     textAlign = TextAlign.Center,
@@ -207,7 +218,7 @@ fun LogSetScreen(session: SessionController, exerciseId: String, onLogged: () ->
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp),
                 )
             }
-            prescription?.let { item { SessionCaption("asked: ${it.summary(unit, side)}") } }
+            prescription?.let { item { SessionCaption("asked: ${it.summary(unit, side, kind)}") } }
             exercise.sets.lastOrNull()?.let { item { SessionCaption("before: ${it.display(unit)}") } }
 
             item {
@@ -242,7 +253,7 @@ fun LogSetScreen(session: SessionController, exerciseId: String, onLogged: () ->
             item {
                 Chip(
                     onClick = {
-                        session.logSet(
+                        val restStarted = session.logSet(
                             exerciseId = exerciseId,
                             // Null becomes 0.0 in the draft, which `toLoggedSet` sends as absent --
                             // `DraftSet.weightKg` is the unit-free store and 0 is its "not weighed".
@@ -251,7 +262,7 @@ fun LogSetScreen(session: SessionController, exerciseId: String, onLogged: () ->
                             rpe = rpe,
                             side = side,
                         )
-                        onLogged()
+                        onLogged(restStarted)
                     },
                     label = { Text("Log set") },
                     colors = ChipDefaults.primaryChipColors(),
@@ -384,16 +395,26 @@ fun ExercisesScreen(
     Scaffold(timeText = { TimeText() }) {
         ScalingLazyColumn(modifier = Modifier.fillMaxSize()) {
             item { ListHeader { Text(current.name, maxLines = 1, overflow = TextOverflow.Ellipsis) } }
-            items(current.exercises) { exercise ->
-                Chip(
-                    onClick = { session.focus(exercise.id); onLogSet(exercise.id) },
-                    label = { Text(exercise.displayName, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                    secondaryLabel = {
-                        Text(exercise.sets.lastOrNull()?.display(unit) ?: "No sets yet")
-                    },
-                    colors = ChipDefaults.secondaryChipColors(),
-                    modifier = Modifier.fillMaxWidth(),
-                )
+            current.exercises.forEach { exercise ->
+                val label = session.groupLabel(exercise.id)
+                // "Superset A" once, above the group's first member, as LIFT Android's GroupHeading.
+                if (label != null && label.first) item { SetTypeCaption(label.group) }
+                item {
+                    Chip(
+                        onClick = { session.focus(exercise.id); onLogSet(exercise.id) },
+                        label = {
+                            Text(
+                                SetTypeLabels.heading(exercise.displayName, label),
+                                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            )
+                        },
+                        secondaryLabel = {
+                            Text(exercise.sets.lastOrNull()?.display(unit) ?: "No sets yet")
+                        },
+                        colors = ChipDefaults.secondaryChipColors(),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
             item { SecondaryChip("Add exercise", onAdd) }
         }
@@ -479,6 +500,20 @@ private fun SessionCaption(text: String) {
         color = DclColors.Muted,
         textAlign = TextAlign.Center,
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 1.dp),
+    )
+}
+
+/** A group label or a set's kind: the rust the phone gives "Superset A", one line, centered. */
+@Composable
+private fun SetTypeCaption(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.caption2,
+        color = DclColors.AccentText,
+        textAlign = TextAlign.Center,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 1.dp),
     )
 }
 
