@@ -14,6 +14,6 @@ synchronization) with, and is a companion to:
 
 No source from those repositories is vendored here.
 
-The Apple Watch application that was in `apple/` (with its `LiftKit` package
-and `shared/contracts/`) moved to lift-ios in 2026-09, as LIFT for iPhone's
-companion app, and is maintained there.
+The Apple Watch application that used to be in this repository (with its
+LiftKit package and sync contracts) moved to lift-ios, under `Watch/`, as
+LIFT for iPhone's companion app, and is maintained there.

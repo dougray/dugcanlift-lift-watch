@@ -5,7 +5,7 @@ import kotlinx.serialization.json.*
 class WatchFoodLibrary(private val rows: List<WatchFood>) {
     val count: Int get() = rows.size
 
-    /** Case-insensitive substring, first `limit` in file order; blank returns nothing. Same rule as apple/LiftKit's WatchFoodLibrary. */
+    /** Case-insensitive substring, first `limit` in file order; blank returns nothing. Same rule as `WatchFoodLibrary` in lift-ios's `Watch/LiftWatchKit`. */
     fun search(query: String, limit: Int = 30): List<WatchFood> {
         val needle = query.trim().lowercase()
         if (needle.isEmpty()) return emptyList()
