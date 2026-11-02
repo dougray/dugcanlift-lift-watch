@@ -1,6 +1,7 @@
 package com.dugcanlift.liftwear
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
@@ -17,7 +18,9 @@ import androidx.health.services.client.data.ExerciseConfig
 import androidx.health.services.client.data.ExerciseLapSummary
 import androidx.health.services.client.data.ExerciseType
 import androidx.health.services.client.data.ExerciseUpdate
+import androidx.health.services.client.data.ExerciseTrackedStatus
 import androidx.health.services.client.endExercise
+import androidx.health.services.client.getCurrentExerciseInfo
 import androidx.health.services.client.startExercise
 import com.dugcanlift.liftkit.HeartRatePerSet
 import kotlinx.coroutines.CoroutineScope
@@ -64,7 +67,19 @@ import java.time.Instant
  * (`SetHeartRates`, `HeartRatePerSet`) and the session's average and maximum. This class keeps no
  * reading itself, and nothing anywhere writes one down.
  */
-class HeartRateRecorder(context: Context) {
+/**
+ * What [SessionController] needs from the wrist's heart rate: start it for a new session, pick it
+ * back up for a session restored after the process died, stop it at the end, and where the readings
+ * go. [HeartRateRecorder] is the real one; a test hands the controller a fake that counts the calls.
+ */
+interface HeartRateSource {
+    var onReadings: ((List<HeartRatePerSet.Sample>) -> Unit)?
+    fun start()
+    fun resume()
+    fun stop()
+}
+
+class HeartRateRecorder(context: Context) : HeartRateSource {
     private val appContext = context.applicationContext
     private val client by lazy { HealthServices.getClient(appContext).exerciseClient }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -82,7 +97,7 @@ class HeartRateRecorder(context: Context) {
      * while the screen is off, so a batch can arrive well after its readings were taken — which is
      * why each carries its own time rather than the time it arrived.
      */
-    var onReadings: ((List<HeartRatePerSet.Sample>) -> Unit)? = null
+    override var onReadings: ((List<HeartRatePerSet.Sample>) -> Unit)? = null
 
     val hasPermission: Boolean
         get() = appContext.checkSelfPermission(heartRatePermission()) == PackageManager.PERMISSION_GRANTED
@@ -125,25 +140,62 @@ class HeartRateRecorder(context: Context) {
      * Starts a weightlifting exercise. Safe to call when Health Services is absent or the permission
      * was refused: it returns having done nothing, and the lifting session is unaffected.
      */
-    fun start() {
+    override fun start() {
         if (running || !hasPermission) return
         running = true
         _bpm.value = null
-        val config = ExerciseConfig.Builder(ExerciseType.WEIGHTLIFTING)
-            .setDataTypes(setOf(DataType.HEART_RATE_BPM))
-            .setIsAutoPauseAndResumeEnabled(false)
-            .setIsGpsEnabled(false)
-            .build()
         scope.launch {
             runCatching {
                 client.setUpdateCallback(callback)
-                client.startExercise(config)
+                client.startExercise(exerciseConfig())
             }.onFailure { running = false }
         }
     }
 
+    /**
+     * Picks heart rate back up for a session the watch restored after Wear killed this process
+     * between sets. Without it, the rest of that session had no bpm on screen and no figure on any
+     * set, because only the two ways of *starting* a session ever called [start].
+     *
+     * **The exercise usually outlived the process.** Health Services owns it, not this app, so after
+     * a kill it is normally still running and still this app's: then this only registers the
+     * callback again, which is how Health Services hands a returning app its updates, and starting a
+     * second exercise on top would end the first. When there is none, it starts one as [start] does.
+     * When another app's exercise is running, it does nothing: a restore is not the lifter asking for
+     * a new session, so it must not end somebody's run to take the sensor.
+     *
+     * `RestrictedApi` is suppressed for [ExerciseTrackedStatus] alone. In 1.1.0 the annotation class
+     * holding those constants is marked library-only, while the public
+     * [androidx.health.services.client.data.ExerciseInfo.exerciseTrackedStatus] returns exactly those
+     * values and the library offers no other way to read them.
+     */
+    @SuppressLint("RestrictedApi")
+    override fun resume() {
+        if (running || !hasPermission) return
+        running = true
+        _bpm.value = null
+        scope.launch {
+            runCatching {
+                when (client.getCurrentExerciseInfo().exerciseTrackedStatus) {
+                    ExerciseTrackedStatus.OWNED_EXERCISE_IN_PROGRESS -> client.setUpdateCallback(callback)
+                    ExerciseTrackedStatus.OTHER_APP_IN_PROGRESS -> running = false
+                    else -> {
+                        client.setUpdateCallback(callback)
+                        client.startExercise(exerciseConfig())
+                    }
+                }
+            }.onFailure { running = false }
+        }
+    }
+
+    private fun exerciseConfig(): ExerciseConfig = ExerciseConfig.Builder(ExerciseType.WEIGHTLIFTING)
+        .setDataTypes(setOf(DataType.HEART_RATE_BPM))
+        .setIsAutoPauseAndResumeEnabled(false)
+        .setIsGpsEnabled(false)
+        .build()
+
     /** Ends the exercise. */
-    fun stop() {
+    override fun stop() {
         if (!running) return
         running = false
         _bpm.value = null

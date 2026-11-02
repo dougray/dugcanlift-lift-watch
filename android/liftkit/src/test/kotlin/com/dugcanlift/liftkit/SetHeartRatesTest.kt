@@ -174,4 +174,66 @@ class SetHeartRatesTest {
         val back = SessionOutbox.decode(SessionOutbox.encode(SessionOutbox().with(finished))).sessions().single()
         assertEquals(finished, back)
     }
+
+    // ---- after the process was killed ----------------------------------------------------------------
+
+    @Test fun `the session's pair survives a restart as a running total, never as readings`() {
+        val before = SetHeartRates()
+        before.reading(10, 120.0)
+        before.reading(20, 160.0)
+        val saved = before.totals!!
+        assertEquals(SetHeartRates.Totals(count = 2, total = 280.0, highest = 160.0), saved)
+
+        val after = SetHeartRates()
+        after.resume(saved, draft())
+        assertEquals(0, after.heldSampleCount)
+        assertEquals(SessionHeartRate(averageBpm = 140, maxBpm = 160), after.session)
+        after.reading(400, 110.0)
+        // (120 + 160 + 110) / 3 = 130: the average covers both sides of the restart.
+        assertEquals(SessionHeartRate(averageBpm = 130, maxBpm = 160), after.session)
+    }
+
+    @Test fun `a set ticked before the restart gets no figure from the readings after it`() {
+        var draft = draft().log("bench", start + 60).withHeartRates(mapOf("set-0" to 142), start + 90)
+            .log("bench", start + 200)                       // its window was open when the process died
+        val heart = SetHeartRates()
+        heart.resume(null, draft)
+        heart.reading(205, 150.0)                            // inside set-1's window, but half of it is gone
+        heart.reading(230, 120.0)
+        draft = heart.settle(draft, start + 230)
+        assertEquals(listOf<Int?>(142, null), draft.figures())
+
+        draft = draft.log("row", start + 300)                // after the restart: worked out as usual
+        heart.reading(310, 155.0)
+        heart.reading(321, 100.0)
+        draft = heart.settle(draft, start + 321)
+        assertEquals(listOf<Int?>(142, null, 155), draft.figures())
+        draft = heart.settle(draft, start + 400, finishing = true)
+        assertEquals(listOf<Int?>(142, null, 155), draft.figures())
+    }
+
+    @Test fun `totals that make no sense are dropped, and no reading is no total`() {
+        assertNull(SetHeartRates().totals)
+        listOf(
+            SetHeartRates.Totals(-1, 280.0, 160.0),
+            SetHeartRates.Totals(2, Double.NaN, 160.0),
+            SetHeartRates.Totals(2, 280.0, 0.0),
+            SetHeartRates.Totals(0, 0.0, 0.0),
+        ).forEach { junk ->
+            val heart = SetHeartRates()
+            heart.resume(junk, draft())
+            assertNull("$junk", heart.session)
+            assertNull("$junk", heart.totals)
+        }
+    }
+
+    @Test fun `the totals ride in the snapshot, and a snapshot written before them reads as none`() {
+        val totals = SetHeartRates.Totals(count = 3, total = 390.0, highest = 150.0)
+        val snapshot = SessionSnapshot.of(draft(), null, RestTimer(), heartRateTotals = totals)
+        assertEquals(totals, SessionSnapshot.decode(SessionSnapshot.encode(snapshot))!!.heartRateTotals)
+
+        val old = """{"draft":{"id":"s","name":"Push","startedAtEpochSeconds":1,"updatedAtEpochSeconds":1,""" +
+            """"exercises":[]}}"""
+        assertNull(SessionSnapshot.decode(old)!!.heartRateTotals)
+    }
 }
