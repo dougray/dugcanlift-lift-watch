@@ -86,6 +86,12 @@ and the prescription formatting. `:wear` lays them out and owns the radio.
   `30 x 8 · R`. Which side comes next is LIFT Android's own rule, ported from
   `PerSideLogging` function for function rather than read a second way. The
   L/R control shows only on an exercise that says something about sides.
+- **Set types** (LIFT Link version 3). A coach's superset or circuit is headed
+  "Superset A · A1" over each member and trained round by round — logging a set moves to the
+  round's next exercise with no rest, and the round's last set starts the rest. A drop set reads
+  "Drop" under the prescription and starts no rest before it; a rest-pause set reads "Rest-pause"
+  after a 15-second one. The words are LIFT Android's (`SetTypeLabels`); the order and the rests are
+  LIFT iPhone's `SessionRest` (`GuidedSession.RestAfter`). An exercise's first set is never either.
 - **Blank stays blank, further than watchOS can take it.** A prescription of reps
   with no weight shows no weight; the Log set screen's weight field has a real
   dash state; and a set logged there travels with no `weightKg` at all rather

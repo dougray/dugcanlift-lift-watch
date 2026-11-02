@@ -1,15 +1,18 @@
 package com.dugcanlift.liftkit
 
+import com.dugcanlift.liftkit.link.ExerciseGroups
 import com.dugcanlift.liftkit.link.LogSide
 import com.dugcanlift.liftkit.link.Plan
 import com.dugcanlift.liftkit.link.PlanExercise
 import com.dugcanlift.liftkit.link.PrescribedSet
+import com.dugcanlift.liftkit.link.SetKind
 
 /**
- * One set to actually perform: the prescription it answers, and the side it is done on (`null` for
- * an ordinary two-sided set).
+ * One set to actually perform: the prescription it answers, the side it is done on (`null` for an
+ * ordinary two-sided set), and whether it is a drop or rest-pause set (`null` for straight — always,
+ * for the first prescribed row, which has no set before it).
  */
-data class PlannedSet(val prescription: PrescribedSet, val side: LogSide? = null)
+data class PlannedSet(val prescription: PrescribedSet, val side: LogSide? = null, val kind: SetKind? = null)
 
 /**
  * The sets to actually perform, in order, one entry per set: an each-side set expands to two — left
@@ -21,11 +24,14 @@ data class PlannedSet(val prescription: PrescribedSet, val side: LogSide? = null
  * that list back exactly, which is what [GuidedSession] does.
  */
 val PlanExercise.plannedSets: List<PlannedSet>
-    get() = sets.flatMap { set ->
+    get() = sets.flatMapIndexed { index, set ->
+        // An each-side drop set is a drop on both limbs: the kind belongs to the prescribed row, and
+        // both of its performed sets carry it. Read through kindOf, so row 0 is always straight.
+        val kind = kindOf(index)
         when {
-            set.side != null -> listOf(PlannedSet(set, set.side))
-            eachSide -> listOf(PlannedSet(set, LogSide.LEFT), PlannedSet(set, LogSide.RIGHT))
-            else -> listOf(PlannedSet(set, null))
+            set.side != null -> listOf(PlannedSet(set, set.side, kind))
+            eachSide -> listOf(PlannedSet(set, LogSide.LEFT, kind), PlannedSet(set, LogSide.RIGHT, kind))
+            else -> listOf(PlannedSet(set, null, kind))
         }
     }
 
@@ -51,6 +57,14 @@ val PlanExercise.prescribesSides: Boolean get() = eachSide || sets.any { it.side
  * as `startingSide` does: the side of the first prescribed sided set the log has not filled, and
  * past the prescription whichever side has fewer sets logged, left breaking a tie. A plan that says
  * nothing about sides behaves exactly as it always has.
+ *
+ * **Set types** (PLAN-FORMAT.md "Set types"). A superset or circuit is trained **round by round** —
+ * one set of each member in order, then the next round, a member that has run out skipped — so
+ * logging a set inside a group moves to the round's next exercise rather than staying put, and the
+ * rest comes after the round, not between its exercises. A drop set starts no rest before it and a
+ * rest-pause set a 15-second one ([RestAfter]). Those are LIFT iPhone's `SessionRest` rules, ported,
+ * because the watch is the one place LIFT *guides* the order. A plan with no set types is trained and
+ * rested exactly as before. Nothing is graded: nothing here records whether a round was done as one.
  *
  * Not itself serializable: [Plan] lives in the shared `link` package, which deliberately imports no
  * JSON library at all (`LinkProtocol`'s file comment), and annotating it there would break the one
@@ -149,6 +163,25 @@ data class GuidedSession(
                 ?: planned.lastOrNull()?.prescription
         }
 
+    /**
+     * Whether the next set is a drop or rest-pause set (PLAN-FORMAT.md "Set types"), chosen the way
+     * [currentPrescription] chooses its numbers — the next unfilled planned set, on the side in play
+     * when there is one — or `null` for straight.
+     *
+     * **Only while that set is still owed.** Past the prescription [currentPrescription] repeats the
+     * last numbers the coach asked for, which is a fair suggestion for an extra set; "drop" is not —
+     * an extra set nobody prescribed is nobody's drop set. Said, never graded: nothing here records
+     * whether the lifter actually did it as one.
+     */
+    val currentKind: SetKind?
+        get() {
+            val exercise = currentExercise ?: return null
+            val planned = exercise.plannedSets
+            val logged = loggedSides[exerciseIndex]
+            val side = currentSide ?: return planned.getOrNull(logged.size)?.kind
+            return planned.filter { it.side == side }.getOrNull(logged.count { it == side })?.kind
+        }
+
     val isComplete: Boolean get() = nextUnfinished(0, plan, loggedSides) == null
 
     /** Sets done across the whole plan, for a progress line. */
@@ -156,8 +189,27 @@ data class GuidedSession(
 
     fun completedSets(exerciseIndex: Int): Int = loggedSides.getOrNull(exerciseIndex)?.size ?: 0
 
-    /** What [recordSet] produced: where the session now is, and the prescription just performed. */
-    data class Recorded(val session: GuidedSession, val performed: PrescribedSet?)
+    /**
+     * What logging a set should start (PLAN-FORMAT.md "Set types", the set-types design's "The rest
+     * timer", LIFT iPhone's `SessionRest`): a rest, or none because the next set follows at once.
+     */
+    sealed interface RestAfter {
+        /** A rest of [seconds], or the watch's own default when `null` — never zero. */
+        data class Rest(val seconds: Int?) : RestAfter
+
+        /** No rest: the next set is the round's next exercise, or a drop set. */
+        data object None : RestAfter
+    }
+
+    /**
+     * What [recordSet] produced: where the session now is, the prescription just performed, and what
+     * rest to start.
+     */
+    data class Recorded(
+        val session: GuidedSession,
+        val performed: PrescribedSet?,
+        val rest: RestAfter = RestAfter.Rest(performed?.restSeconds),
+    )
 
     /**
      * Records one completed set against the current exercise and advances when that exercise has had
@@ -177,10 +229,47 @@ data class GuidedSession(
     fun recordSet(side: LogSide? = null): Recorded {
         if (currentExercise == null) return Recorded(this, null)
         val performed = currentPrescription
+        val position = loggedSides[exerciseIndex].size
         val updated = loggedSides.toMutableList()
         updated[exerciseIndex] = updated[exerciseIndex] + side
-        val next = nextUnfinished(exerciseIndex, plan, updated) ?: exerciseIndex
-        return Recorded(copy(loggedSides = updated, exerciseIndex = next), performed)
+        // Inside a superset or circuit the next set is the round's next one, which is usually the
+        // next exercise; otherwise this exercise until its sets are done, as it always was.
+        val next = nextInGroup(exerciseIndex, plan, updated)
+            ?: nextUnfinished(exerciseIndex, plan, updated)?.let { roundStart(it, plan, updated) }
+            ?: exerciseIndex
+        val after = copy(loggedSides = updated, exerciseIndex = next)
+        return Recorded(after, performed, restAfter(exerciseIndex, position, updated, after, performed))
+    }
+
+    /**
+     * LIFT iPhone's `SessionRest.after`, rule for rule, over this session's counts:
+     *
+     * - **Inside a round**, while another set of the same round is still owed, no rest — the round
+     *   is done back to back. Its last set starts the full rest.
+     * - **The next set is a drop set**: no rest.
+     * - **The next set is rest-pause**: [REST_PAUSE_SECONDS].
+     * - Otherwise the rest the set just performed prescribed, or the default.
+     *
+     * A plan with no set types always takes the last branch, so it rests exactly as it always did.
+     */
+    private fun restAfter(
+        exercise: Int,
+        position: Int,
+        updated: List<List<LogSide?>>,
+        after: GuidedSession,
+        performed: PrescribedSet?,
+    ): RestAfter {
+        val full = RestAfter.Rest(performed?.restSeconds)
+        val row = rowOf(plan.exercises[exercise], position)
+        if (row != null && groupSteps(exercise, plan).any { it.row == row && !it.done(updated) }) {
+            return RestAfter.None
+        }
+        if (after.isComplete) return full
+        return when (after.currentKind) {
+            SetKind.DROP -> RestAfter.None
+            SetKind.REST_PAUSE -> RestAfter.Rest(REST_PAUSE_SECONDS)
+            null -> full
+        }
     }
 
     /**
@@ -191,12 +280,58 @@ data class GuidedSession(
         if (index in plan.exercises.indices) copy(exerciseIndex = index) else this
 
     companion object {
+        /** Rest-pause is a fixed pause, not a setting: the set-types design's own call, as on LIFT iPhone. */
+        const val REST_PAUSE_SECONDS = 15
+
         fun start(plan: Plan): GuidedSession {
             val empty = List(plan.exercises.size) { emptyList<LogSide?>() }
             // An exercise prescribing no sets at all is already done, so the session opens on the
             // first one that actually asks for something.
-            return GuidedSession(plan, empty, nextUnfinished(0, plan, empty) ?: 0)
+            return GuidedSession(plan, empty, nextUnfinished(0, plan, empty)?.let { roundStart(it, plan, empty) } ?: 0)
         }
+
+        /** One set of a group's round order: the exercise, its planned-set position, and its round. */
+        private data class Step(val exercise: Int, val position: Int, val row: Int) {
+            fun done(logged: List<List<LogSide?>>): Boolean = (logged.getOrNull(exercise)?.size ?: 0) > position
+        }
+
+        /** The prescribed row a planned-set [position] belongs to — both sides of an each-side row are one row. */
+        private fun rowOf(exercise: PlanExercise, position: Int): Int? {
+            var at = 0
+            exercise.sets.forEachIndexed { row, set ->
+                at += if (set.side == null && exercise.eachSide) 2 else 1
+                if (position < at) return row
+            }
+            return null
+        }
+
+        /**
+         * The order a group is trained in, round by round: row 0 of each member in order, then row
+         * 1, and a member that has run out of rows is skipped — PLAN-FORMAT's "the round goes on
+         * while any exercise still has sets". Both sides of an each-side row stay together in their
+         * round. Empty for an exercise that is not in a group ([ExerciseGroups.runs]: adjacency).
+         */
+        private fun groupSteps(exercise: Int, plan: Plan): List<Step> {
+            val groups = ExerciseGroups.runs(plan.exercises.map { it.group })
+            val group = groups.getOrNull(exercise) ?: return emptyList()
+            val members = groups.indices.filter { groups[it] == group }
+            val rows = members.maxOf { plan.exercises[it].sets.size }
+            val steps = mutableListOf<Step>()
+            for (row in 0 until rows) for (member in members) {
+                plan.exercises[member].plannedSets.indices
+                    .filter { rowOf(plan.exercises[member], it) == row }
+                    .forEach { steps += Step(member, it, row) }
+            }
+            return steps
+        }
+
+        /** The group member whose set comes next in the round order, or `null` once the group is done. */
+        private fun nextInGroup(exercise: Int, plan: Plan, logged: List<List<LogSide?>>): Int? =
+            groupSteps(exercise, plan).firstOrNull { !it.done(logged) }?.exercise
+
+        /** Arriving at [exercise]: inside a group, the member the round order says is next. */
+        private fun roundStart(exercise: Int, plan: Plan, logged: List<List<LogSide?>>): Int =
+            nextInGroup(exercise, plan, logged) ?: exercise
 
         /**
          * The next exercise with sets still owed, searching from [start] forwards and then wrapping
