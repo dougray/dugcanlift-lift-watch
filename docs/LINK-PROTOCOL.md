@@ -268,7 +268,51 @@ exercise "Triceps Pushdown"      mask 01 … 0003 sets
 ```
 
 Heart rate per set, drafted as "version 3" in the LIFT superproject's build plan before this
-existed, has no code; it becomes version 4, on the logged-set mask this version does not touch.
+existed, became version 4, on the logged-set mask this version does not touch.
+
+### Version 4: heart rate
+
+Version 4 added heart rate to what the watch sends home, and nothing else (the LIFT superproject's
+build plan, item 16, "Heart rate per set"):
+
+- **`maxBpm` on a logged set** — logged-set mask bit `0x40`, the one bit versions 1-3 left spare,
+  then one byte after the distance: the highest heart rate the watch measured around that set, in
+  whole bpm, `1`-`255`. The same encoding serves `SET_LOGGED` and `SESSION_FINISHED`, as every
+  logged-set field does.
+- **The session's average and maximum** — a `SESSION_FINISHED` may end with one more mask byte
+  after its last exercise: `0x01` average, `0x02` maximum, `0xFC` reserved, then the average and
+  the maximum in that order, one byte each, whole bpm. **The trailer is written only when the
+  session has a heart rate at all**; a mask of `0x00` is never written and is refused, so a session
+  with no heart rate has one encoding, and it is version 3's.
+
+**Zero is never a heart rate.** A `0` bpm byte is refused on the way in, and on the way out a heart
+rate the byte cannot carry (zero, negative, over 255) is **left off rather than refused** — the one
+field here treated that way, because a heart rate is the one thing on this wire whose loss costs
+nothing, and a sensor's odd number must never be what stops a session reaching the phone.
+
+Both additions are absent rather than zero when nothing was measured, so **a session with no heart
+rate encodes to exactly version 3's bytes** and the `session` line of `fixtures/link-wire.txt` did
+not move. A version-3 phone would refuse the bit and the trailing byte outright, so
+`LinkSession.finishSession` and `LinkSession.reportSet` strip heart rate on a link that settled below
+4 (`FinishedSession.withoutHeartRate`): a version-3 phone still gets the whole session, with every
+set's numbers and no heart rate. The outbox keeps the whole session and is stripped at each send, so
+a watch that later meets an updated phone sends it the figures. `LinkHeartRateTest` (shared) pins
+it, and `fixtures/link-wire.txt` gained `session.heartRate` and `frame.planRequestV4`.
+
+Example — `fixtures/link-wire.txt`'s `session.heartRate`, from the first set on:
+
+```
+set  47 000147cb 0005 50 8e      83.915 kg x 5 @8, max 142 bpm
+set  02 0005                     reps 5, nothing measured
+…
+set  4b 00009c40 0008 01 83      40 kg x 8, side 1 (left), max 131 bpm
+set  4b 00009c40 0008 02 81      40 kg x 8, side 2 (right), max 129 bpm
+     03 76 9c                    session: average 118, max 156
+```
+
+The window rule that produces a set's figure lives on the watch, not on the wire (`liftkit`'s
+`HeartRatePerSet`), and the phone stores what arrives. No phone reads heart rate, and none of it
+reaches a coach: SHARE-FORMAT carries no heart rate.
 
 ### What v1 carries
 
@@ -280,7 +324,7 @@ existed, has no code; it becomes version 4, on the logged-set mask this version 
 - `SET_LOGGED` — session id, revision, exercise, set index, the set, and when. Optional streaming:
   a phone on the bench stays in step, and nothing is lost if none arrive.
 - `SESSION_FINISHED` — the source of truth: session id, revision, day, name, start time, and the
-  exercises with their sets.
+  exercises with their sets (and, from version 4, an optional heart-rate trailer).
 
 ## Errors
 
