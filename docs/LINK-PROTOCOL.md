@@ -7,7 +7,7 @@ actually lifted.
 ## Why it exists
 
 The Apple side already has a phone transport: `WCSession`, with the wire contract in
-`shared/contracts/workout-sync.schema.json`. The Wear app has none, on purpose — the Wearable Data
+`lift-ios`'s `Watch/contracts/workout-sync.schema.json`. The Wear app has none, on purpose — the Wearable Data
 Layer needs Google Play Services on **both** ends, LIFT Android carries none by policy, and the
 Wear app has no `INTERNET` permission at all. That is why it exports by QR code today.
 
