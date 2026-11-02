@@ -1,6 +1,6 @@
 # LIFT Link — the Wear OS ↔ LIFT Android channel
 
-Version 2, and it still speaks version 1. A direct Bluetooth LE channel between LIFT Android (the phone) and the LIFT Wear OS
+Version 3, and it still speaks versions 1 and 2. A direct Bluetooth LE channel between LIFT Android (the phone) and the LIFT Wear OS
 watch, so the phone can push the day's workout to the wrist and the wrist can send back what was
 actually lifted.
 
@@ -230,6 +230,45 @@ that stripping a sided plan gives byte for byte what a plan without sides gives.
 **Not in version 2:** duration and distance on a prescription, and per-set `restSeconds` beyond what
 version 1 already carried. A conditioning piece prescribed by time still reaches the watch as a set
 with no numbers.
+
+### Version 3: a coach's set types
+
+Version 3 added two fields to `PLAN_PUSHED` and nothing else (PLAN-FORMAT.md "Set types"):
+
+- **`group` on an exercise** — exercise mask bit `0x10`, then a `u16` group number, written after
+  the note and before the set count. Adjacent exercises sharing a number are one superset (two) or
+  circuit (three or more), trained round by round. **Adjacency makes the group, not the number**:
+  the encoder writes the runs renumbered 1, 2, 3… in order of appearance and writes **nothing** for
+  a group of one; the decoder applies the same rule, and reads a `0` as not grouped.
+- **`kind` on a prescribed set** — prescribed-set mask bit `0x20`, then one byte after the side:
+  `1` drop, `2` rest-pause, PLAN-FORMAT's own value in flags bits 3-4. **An exercise's first set is
+  always straight**: it is never written with a kind and a kind there is read as straight. A kind
+  code this build does not know reads as straight too, as PLAN-FORMAT reads a `3`; the presence
+  bits themselves stay strict like every other.
+
+Both are presence bits in masks versions 1 and 2 reserved, so **a plan with no set types encodes to
+exactly version 2's bytes** and every earlier fixture line is unchanged. As with sides,
+`LinkSession.pushPlan` strips them on a link that settled below 3 (`Plan.withoutSetTypes`): a
+version-2 watch gets the exercises in the coach's order and the drop set as an ordinary set with
+the right numbers, which is PLAN-FORMAT's own reading for an old decoder. `LinkPlanSetTypesTest`
+(shared) pins it, and `fixtures/link-wire.txt` gained `plan.setTypes` and `frame.planRequestV3`.
+
+Example — PLAN-FORMAT's own superset of bench and rows, with a drop set on the pushdown:
+
+```
+exercise "Dumbbell Bench Press"  mask 11 = equipment | group   … 0001 (group 1) 0002 sets
+  set  02 000a                   reps 10
+  set  02 000a                   reps 10
+exercise "Seated Cable Row"      mask 11 … 0001 (group 1) 0001 sets
+  set  02 000c                   reps 12
+exercise "Triceps Pushdown"      mask 01 … 0003 sets
+  set  03 00007530 000c          30 kg x 12
+  set  22 000a 01                reps 10, kind 1 (drop)
+  set  32 000a 01 01             reps 10, side 1 (left), kind 1 (drop)
+```
+
+Heart rate per set, drafted as "version 3" in the LIFT superproject's build plan before this
+existed, has no code; it becomes version 4, on the logged-set mask this version does not touch.
 
 ### What v1 carries
 

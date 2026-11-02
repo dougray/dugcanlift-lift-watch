@@ -6,6 +6,7 @@ import com.dugcanlift.liftkit.link.Plan
 import com.dugcanlift.liftkit.link.PlanExercise
 import com.dugcanlift.liftkit.link.PlanSource
 import com.dugcanlift.liftkit.link.PrescribedSet
+import com.dugcanlift.liftkit.link.SetKind
 
 /**
  * Formatting for a plan and for a logged set — a port of LIFT for Apple Watch's `PlanDisplay.swift`,
@@ -86,11 +87,18 @@ fun PrescribedSet.headline(unit: WeightUnit, side: LogSide? = null): String {
     return text
 }
 
-/** Everything the set prescribes, RPE included: "185 x 5 @8", and "30 x 8 @8 · L" with a side. */
-fun PrescribedSet.summary(unit: WeightUnit, side: LogSide? = null): String {
+/**
+ * Everything the set prescribes, RPE included: "185 x 5 @8", "30 x 8 @8 · L" with a side, and
+ * "30 x 8 @8 · L drop" with a set type — side then kind, LIFT Android's and Coach web's order.
+ *
+ * [kind] is the caller's, like [side], because whether a set is a drop is a fact about its place in
+ * the exercise ([GuidedSession.currentKind]), not about the numbers: the first set never is.
+ */
+fun PrescribedSet.summary(unit: WeightUnit, side: LogSide? = null, kind: SetKind? = null): String {
     var text = headline(unit)
     if (rpe != null) text += " @${PlanFormat.rpe(rpe)}"
     if (side != null) text += " · ${side.shortLabel}"
+    text += SetTypeLabels.suffix(kind)
     return text
 }
 
