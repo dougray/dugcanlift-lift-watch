@@ -2,6 +2,8 @@ package com.dugcanlift.liftwear
 
 import com.dugcanlift.liftkit.GuidedSession
 import com.dugcanlift.liftkit.RestTimer
+import com.dugcanlift.liftkit.SetTypeLabels
+import com.dugcanlift.liftkit.groupLabels
 import com.dugcanlift.liftkit.SessionSnapshot
 import com.dugcanlift.liftkit.WeightUnit
 import com.dugcanlift.liftkit.WorkoutDraft
@@ -11,6 +13,7 @@ import com.dugcanlift.liftkit.lastSetReport
 import com.dugcanlift.liftkit.link.LogSide
 import com.dugcanlift.liftkit.link.Plan
 import com.dugcanlift.liftkit.link.PrescribedSet
+import com.dugcanlift.liftkit.link.SetKind
 import com.dugcanlift.liftkit.toFinishedSession
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -149,6 +152,24 @@ class SessionController(
         if (guidedExerciseId() == exerciseId) _guided.value?.currentPrescription else null
 
     /**
+     * Whether the set about to be logged is a drop or rest-pause set, or `null` for straight or when
+     * this is not the guided exercise. A word beside the prescription, nothing more: the set is
+     * logged and sent home exactly as any other (SHARE-FORMAT carries no set type).
+     */
+    fun prescribedKind(exerciseId: String): SetKind? =
+        if (guidedExerciseId() == exerciseId) _guided.value?.currentKind else null
+
+    /**
+     * The superset or circuit a draft exercise belongs to, or `null`. Draft exercise *n* is plan
+     * exercise *n* (see [startPlanned]); an exercise added off plan, past the end, is in no group.
+     */
+    fun groupLabel(exerciseId: String): SetTypeLabels.GroupLabel? {
+        val plan = _guided.value?.plan ?: return null
+        val index = _draft.value?.exercises?.indexOfFirst { it.id == exerciseId } ?: return null
+        return plan.groupLabels.getOrNull(index)
+    }
+
+    /**
      * The side the next set should be logged on — a **suggestion**, not a decision: the log records
      * what happened while the plan only asked, so the screen starts here and the lifter can move it.
      */
@@ -172,27 +193,38 @@ class SessionController(
      * The rest is that set's, not the next set's and not the next exercise's, which is why
      * [GuidedSession.recordSet] hands the performed prescription back. A prescription with no rest
      * seconds gets [RestTimer.DEFAULT_SECONDS] — never zero rest.
+     *
+     * **Set types change which rest, not whether the set is logged** ([GuidedSession.RestAfter]):
+     * inside a superset round, or before a drop set, no rest starts at all and this returns `false`,
+     * so the caller goes straight back to the session screen, which is already showing the round's
+     * next exercise or the word "Drop". Before a rest-pause set the rest is 15 seconds.
+     *
+     * @return whether a rest started.
      */
-    fun logSet(exerciseId: String, weightKg: Double, reps: Int, rpe: Double?, side: LogSide?) {
-        val current = _draft.value ?: return
+    fun logSet(exerciseId: String, weightKg: Double, reps: Int, rpe: Double?, side: LogSide?): Boolean {
+        val current = _draft.value ?: return false
         val updated = current.logSet(
             exerciseId = exerciseId, weightKg = weightKg, reps = reps, rpe = rpe, side = side,
             nowEpochSeconds = nowSeconds(), idFactory = idFactory,
         )
-        if (updated === current) return
+        if (updated === current) return false
         _draft.value = updated
 
-        var prescribedRest: Int? = null
+        var rest: GuidedSession.RestAfter = GuidedSession.RestAfter.Rest(null)
         if (guidedExerciseId() == exerciseId) {
             val recorded = _guided.value!!.recordSet(side)
             _guided.value = recorded.session
-            prescribedRest = recorded.performed?.restSeconds
+            rest = recorded.rest
         }
-        _rest.value = RestTimer().forInterval(prescribedRest).started(clockMillis())
+        _rest.value = when (rest) {
+            is GuidedSession.RestAfter.Rest -> RestTimer().forInterval(rest.seconds).started(clockMillis())
+            GuidedSession.RestAfter.None -> RestTimer().stopped()
+        }
         persist()
         // Optional and last: a phone on the bench stays in step, and nothing is lost if it does not
         // arrive -- the finished session is the source of truth and it is already on disk.
         updated.lastSetReport(exerciseId)?.let(link::reportSet)
+        return rest is GuidedSession.RestAfter.Rest
     }
 
     /** Undoes the last set of an exercise — the one edit a wrist needs, for a mis-tap. */
