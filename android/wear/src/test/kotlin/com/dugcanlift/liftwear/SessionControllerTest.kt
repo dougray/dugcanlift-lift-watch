@@ -9,6 +9,7 @@ import com.dugcanlift.liftkit.link.Plan
 import com.dugcanlift.liftkit.link.PlanExercise
 import com.dugcanlift.liftkit.link.PlanSource
 import com.dugcanlift.liftkit.link.PrescribedSet
+import com.dugcanlift.liftkit.link.SetKind
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -196,6 +197,67 @@ class SessionControllerTest {
         session.logSet(id, 0.0, 8, null, LogSide.RIGHT)
         assertEquals(LogSide.RIGHT, session.draft.value!!.exercise(id)!!.sets.single().side)
         assertEquals(LogSide.LEFT, session.suggestedSide(id))
+    }
+
+    // ---- set types --------------------------------------------------------------------------------------
+
+    @Test fun `a superset's members carry their label, and a drop set says so while it is next`() {
+        pushPlan(
+            PlanExercise("Dumbbell Bench Press", equipment = "dumbbell", sets = List(2) { PrescribedSet(reps = 10) }, group = 1),
+            PlanExercise("Seated Cable Row", equipment = "cable", sets = List(2) { PrescribedSet(reps = 12) }, group = 1),
+            PlanExercise(
+                "Triceps Pushdown",
+                sets = listOf(PrescribedSet(reps = 12), PrescribedSet(reps = 10, kind = SetKind.DROP)),
+            ),
+        )
+        val session = controller()
+        session.startPlanned()
+        val ids = session.draft.value!!.exercises.map { it.id }
+        assertEquals("Superset A · A1", session.groupLabel(ids[0])!!.line)
+        assertEquals("Superset A · A2", session.groupLabel(ids[1])!!.line)
+        assertNull(session.groupLabel(ids[2]))
+
+        session.focus(ids[2])
+        assertNull(session.prescribedKind(ids[2]))
+        session.logSet(ids[2], 30.0, 12, null, null)
+        assertEquals(SetKind.DROP, session.prescribedKind(ids[2]))
+        // Asked about an exercise that is not the guided one, there is nothing to say.
+        assertNull(session.prescribedKind(ids[0]))
+    }
+
+    @Test fun `set types survive the app being killed mid-session`() {
+        pushPlan(
+            PlanExercise("Curl", sets = listOf(PrescribedSet(reps = 8), PrescribedSet(reps = 4, kind = SetKind.REST_PAUSE)), group = 1),
+            PlanExercise("Hammer Curl", sets = List(2) { PrescribedSet(reps = 8) }, group = 1),
+        )
+        val first = controller()
+        first.startPlanned()
+        val id = first.guidedExerciseId()!!
+        // Round by round: the curl's first set is followed at once by the hammer curl's, with no rest.
+        assertEquals(false, first.logSet(id, 15.0, 8, null, null))
+        val hammer = first.guidedExerciseId()!!
+        assertEquals("Hammer Curl", first.draft.value!!.exercise(hammer)!!.name)
+        assertEquals(false, first.rest.value.isRunning)
+        // The round's last set rests, and then it is the curl again: its rest-pause set.
+        assertEquals(true, first.logSet(hammer, 12.5, 8, null, null))
+
+        val resumed = SessionController(
+            SessionStore(ApplicationProvider.getApplicationContext()), link, null,
+            clockMillis = { nowMillis }, idFactory = { "id-x" },
+        )
+        assertEquals(SetKind.REST_PAUSE, resumed.prescribedKind(id))
+        assertEquals("Superset A · A2", resumed.groupLabel(resumed.draft.value!!.exercises[1].id)!!.line)
+    }
+
+    @Test fun `an exercise added off plan is in no group`() {
+        pushPlan(
+            PlanExercise("Bench", sets = List(1) { PrescribedSet(reps = 5) }, group = 1),
+            PlanExercise("Row", sets = List(1) { PrescribedSet(reps = 5) }, group = 1),
+        )
+        val session = controller()
+        session.startPlanned()
+        session.addExercise("Pull Up", "bodyweight", "pullup-bodyweight")
+        assertNull(session.groupLabel(session.draft.value!!.exercises.last().id))
     }
 
     // ---- surviving a process death ---------------------------------------------------------------------
