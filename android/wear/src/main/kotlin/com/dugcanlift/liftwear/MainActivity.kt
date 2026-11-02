@@ -74,11 +74,12 @@ class MainActivity : ComponentActivity() {
                         arguments = listOf(navArgument("exerciseId") { type = NavType.StringType }),
                     ) { entry ->
                         val exerciseId = entry.arguments?.getString("exerciseId").orEmpty()
-                        LogSetScreen(container.session, exerciseId) {
+                        LogSetScreen(container.session, exerciseId) { restStarted ->
                             // Straight to the rest that just started, which is the next thing the
-                            // lifter is actually doing.
+                            // lifter is actually doing -- or, inside a superset round or before a
+                            // drop set, back to the session screen, which already shows what is next.
                             nav.popBackStack()
-                            nav.navigate(Routes.REST)
+                            if (restStarted) nav.navigate(Routes.REST)
                         }
                     }
                     composable(Routes.REST) { RestScreen(container.session) { nav.popBackStack() } }
