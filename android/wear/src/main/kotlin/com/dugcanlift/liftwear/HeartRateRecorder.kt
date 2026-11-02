@@ -4,6 +4,9 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
 import androidx.health.services.client.ExerciseUpdateCallback
 import androidx.health.services.client.HealthServices
 import androidx.health.services.client.clearUpdateCallback
@@ -16,6 +19,7 @@ import androidx.health.services.client.data.ExerciseType
 import androidx.health.services.client.data.ExerciseUpdate
 import androidx.health.services.client.endExercise
 import androidx.health.services.client.startExercise
+import com.dugcanlift.liftkit.HeartRatePerSet
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -23,6 +27,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.time.Instant
 
 /**
  * Heart rate, and a **real exercise session**, for a lifting session on the wrist.
@@ -53,6 +58,11 @@ import kotlinx.coroutines.launch
  * **No number is shown until a sample has actually landed.** A zero, or a dash pretending to be a
  * reading, is worse than a line that is not there — the Apple watch's `HeartRateLabel` rule, and a
  * watch sitting on a table produces no samples at all.
+ *
+ * **Every reading is handed on, with the time it was taken**, to [onReadings] — the session, which
+ * keeps the last few minutes in memory to work out the heart rate around each set
+ * (`SetHeartRates`, `HeartRatePerSet`) and the session's average and maximum. This class keeps no
+ * reading itself, and nothing anywhere writes one down.
  */
 class HeartRateRecorder(context: Context) {
     private val appContext = context.applicationContext
@@ -62,19 +72,17 @@ class HeartRateRecorder(context: Context) {
     private val _bpm = MutableStateFlow<Int?>(null)
     val bpm: StateFlow<Int?> = _bpm.asStateFlow()
 
-    private var samples = 0
-    private var total = 0.0
-    private var highest = 0.0
+    private val main = Handler(Looper.getMainLooper())
 
     @Volatile private var running = false
 
     /**
-     * Average and maximum over the session, or `null` when nothing was ever measured — which is what
-     * a simulator, a refused permission and a watch on a bench all produce, and none of them is a
-     * heart rate of zero.
+     * Where the readings go, on the main thread, as each update arrives: every heart-rate sample in
+     * it, timed in epoch seconds. One update can carry several, and Health Services batches them up
+     * while the screen is off, so a batch can arrive well after its readings were taken — which is
+     * why each carries its own time rather than the time it arrived.
      */
-    val summary: Pair<Int, Int>?
-        get() = if (samples == 0 || highest <= 0.0) null else (total / samples).toInt() to highest.toInt()
+    var onReadings: ((List<HeartRatePerSet.Sample>) -> Unit)? = null
 
     val hasPermission: Boolean
         get() = appContext.checkSelfPermission(heartRatePermission()) == PackageManager.PERMISSION_GRANTED
@@ -87,12 +95,16 @@ class HeartRateRecorder(context: Context) {
         }
 
         override fun onExerciseUpdateReceived(update: ExerciseUpdate) {
-            val latest = update.latestMetrics.getData(DataType.HEART_RATE_BPM).lastOrNull()?.value ?: return
-            if (latest <= 0.0) return
-            samples++
-            total += latest
-            if (latest > highest) highest = latest
-            _bpm.value = Math.round(latest).toInt()
+            val points = update.latestMetrics.getData(DataType.HEART_RATE_BPM)
+            if (points.isEmpty()) return
+            // A data point is timed from boot; the session's ticks are wall-clock seconds.
+            val boot = Instant.ofEpochMilli(System.currentTimeMillis() - SystemClock.elapsedRealtime())
+            val readings = points
+                .filter { HeartRatePerSet.isReading(it.value) }
+                .map { HeartRatePerSet.Sample(it.getTimeInstant(boot).toEpochMilli() / 1000.0, it.value) }
+            if (readings.isEmpty()) return
+            _bpm.value = Math.round(readings.maxBy { it.atSeconds }.bpm).toInt()
+            main.post { onReadings?.invoke(readings) }
         }
 
         override fun onLapSummaryReceived(lapSummary: ExerciseLapSummary) = Unit
@@ -116,9 +128,6 @@ class HeartRateRecorder(context: Context) {
     fun start() {
         if (running || !hasPermission) return
         running = true
-        samples = 0
-        total = 0.0
-        highest = 0.0
         _bpm.value = null
         val config = ExerciseConfig.Builder(ExerciseType.WEIGHTLIFTING)
             .setDataTypes(setOf(DataType.HEART_RATE_BPM))
@@ -133,7 +142,7 @@ class HeartRateRecorder(context: Context) {
         }
     }
 
-    /** Ends the exercise. [summary]'s two numbers survive until the next [start]. */
+    /** Ends the exercise. */
     fun stop() {
         if (!running) return
         running = false
