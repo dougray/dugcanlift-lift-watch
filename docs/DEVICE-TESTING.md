@@ -84,3 +84,9 @@ On the Pixel Watch 2 and the moto g, worn:
    session's line is on its card.
 3. **Refuse the permission.** The session logs exactly as before, with no figures and no heart-rate
    line, and nothing reads zero.
+4. **The app killed mid-session.** Start a session, log two sets, then on the computer run
+   `adb shell am force-stop com.dugcanlift.liftwear` (`.debug` on the end for a debug build), or let
+   Wear kill it with the wrist down, and reopen LIFT. The session is where it was, the bpm line comes back within a few seconds, a set
+   ticked after reopening gets its figure, and Summary's average and max still include the readings
+   from before. Run a session in another workout app first, then restore LIFT's: LIFT must not end
+   the other app's exercise.

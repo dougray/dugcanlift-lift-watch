@@ -42,12 +42,14 @@ import java.util.UUID
  * [SetHeartRates] held here, in memory only; each set's figure lands on its draft set once its
  * window has closed, and the session's average and maximum travel with the finished session. A
  * process death loses the readings and nothing else — a set whose window was still open then simply
- * has no figure — and a watch with no heart rate at all logs exactly as it did before.
+ * has no figure — and a watch with no heart rate at all logs exactly as it did before. The session's
+ * average and maximum do survive one, as a running total in the snapshot rather than as readings,
+ * and a restored session picks the sensor back up ([HeartRateSource.resume]).
  */
 class SessionController(
     private val store: SessionStore,
     private val link: PhoneLinkPeripheral,
-    private val heart: HeartRateRecorder?,
+    private val heart: HeartRateSource?,
     private val clockMillis: () -> Long = System::currentTimeMillis,
     private val idFactory: () -> String = { UUID.randomUUID().toString() },
 ) {
@@ -88,6 +90,13 @@ class SessionController(
         }
         link.onReady = { flushOutbox() }
         heart?.onReadings = ::heartReadings
+        // Last, once readings have somewhere to go. A session still running when the process died
+        // gets its heart rate back; a finished one, or none, leaves the sensor alone.
+        _draft.value?.let { restored ->
+            heartRates.resume(store.session?.heartRateTotals, restored)
+            _heartRate.value = heartRates.session
+            heart?.resume()
+        }
     }
 
     private fun nowSeconds(): Long = clockMillis() / 1000
@@ -317,6 +326,6 @@ class SessionController(
 
     private fun persist() {
         val current = _draft.value
-        store.session = current?.let { SessionSnapshot.of(it, _guided.value, _rest.value) }
+        store.session = current?.let { SessionSnapshot.of(it, _guided.value, _rest.value, heartRates.totals) }
     }
 }

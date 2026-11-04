@@ -1,5 +1,7 @@
 package com.dugcanlift.liftkit
 
+import kotlinx.serialization.Serializable
+
 /** A session's average and highest heart rate, in whole bpm. Never zero: no reading is no pair. */
 data class SessionHeartRate(val averageBpm: Int, val maxBpm: Int)
 
@@ -19,8 +21,15 @@ data class SessionHeartRate(val averageBpm: Int, val maxBpm: Int)
  *
  * **What it keeps.** Readings from the last [KEEP_SECONDS], which is more than any open window can
  * reach back (a window starts at most five minutes before its tick and closes at most 20 s after
- * it), and the running total behind the session's average and maximum. Nothing here is stored: the
- * samples are never written to disk, never sent and never kept past the session.
+ * it), and the running total behind the session's average and maximum. The samples are never
+ * written to disk, never sent and never kept past the session.
+ *
+ * **What survives a process death is the running total, never a reading.** Wear kills the app between
+ * sets, and the session comes back from disk; [totals] rides in its `SessionSnapshot` so the
+ * session's average and maximum still cover the readings from before, and [resume] takes them back.
+ * The readings themselves are gone, so a set ticked before the restart gets no figure afterwards: its
+ * window would be read from half its readings, and a figure from half a window is a number nobody
+ * measured. Sets ticked after the restart are worked out as usual.
  */
 class SetHeartRates {
     private val samples = ArrayList<HeartRatePerSet.Sample>()
@@ -38,6 +47,33 @@ class SetHeartRates {
 
     /** Readings held right now. For tests: the bound is the point. */
     val heldSampleCount: Int get() = samples.size
+
+    /** The count, sum and highest reading behind [session], for the session on disk. */
+    @Serializable
+    data class Totals(val count: Int, val total: Double, val highest: Double)
+
+    /** What [session] is worked out from, or `null` before the first reading. */
+    val totals: Totals? get() = if (count == 0) null else Totals(count, total, highest)
+
+    /**
+     * A session restored from disk: its [saved] totals back, no readings, and every set [draft] has
+     * already ticked settled as it stands -- a set with a figure keeps it, and one without gets none.
+     * Totals that make no sense (a negative count, a non-finite sum) are dropped rather than trusted:
+     * the session then reads from the readings after the restart, which is all it can honestly say.
+     */
+    fun resume(saved: Totals?, draft: WorkoutDraft) {
+        reset()
+        if (saved != null && saved.count > 0 && saved.total.isFinite() && saved.total > 0.0 &&
+            saved.highest.isFinite() && saved.highest > 0.0
+        ) {
+            count = saved.count
+            total = saved.total
+            highest = saved.highest
+        }
+        draft.exercises.flatMap { it.sets }
+            .filter { it.completedAtEpochSeconds != null }
+            .forEach { settled += it.id }
+    }
 
     /** A new session: nothing from the last one carries over. */
     fun reset() {
