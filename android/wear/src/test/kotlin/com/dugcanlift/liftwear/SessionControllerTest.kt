@@ -408,6 +408,62 @@ class SessionControllerTest {
         assertEquals(5, finished.exercises.single().sets.single().reps)
     }
 
+    /** Counts what the controller asks of the wrist, which a real recorder cannot show on the JVM. */
+    private class FakeHeart : HeartRateSource {
+        override var onReadings: ((List<HeartRatePerSet.Sample>) -> Unit)? = null
+        val calls = mutableListOf<String>()
+        override fun start() { calls += "start" }
+        override fun resume() { calls += "resume" }
+        override fun stop() { calls += "stop" }
+    }
+
+    private fun controller(heart: HeartRateSource) = SessionController(
+        store = store, link = link, heart = heart, clockMillis = { clock }, idFactory = { "id-${ids++}" },
+    )
+
+    @Test fun `a session restored after the process was killed picks its heart rate back up`() {
+        clock = nowMillis
+        val first = FakeHeart()
+        val session = controller(first)
+        session.startFreeWorkout()
+        session.addExercise("Squat", "barbell", "squat-barbell")
+        val id = session.draft.value!!.exercises.single().id
+        at(60); session.logSet(id, 100.0, 5, null, null)
+        at(85); session.heartReadings(listOf(reading(55, 120.0), reading(81, 160.0)))
+        assertEquals(listOf("start"), first.calls)
+
+        // Wear kills the process between sets; the next launch builds a new controller from disk.
+        val again = FakeHeart()
+        val restored = controller(again)
+        assertEquals(listOf("resume"), again.calls)
+        assertNotNull(again.onReadings)
+        // The session's pair covers the readings from before the restart.
+        assertEquals(SessionHeartRate(averageBpm = 140, maxBpm = 160), restored.heartRate.value)
+        assertEquals(120, restored.draft.value!!.exercises.single().sets.single().maxBpm)
+
+        at(200); restored.logSet(id, 100.0, 5, null, null)
+        at(225); restored.heartReadings(listOf(reading(195, 150.0), reading(221, 100.0)))
+        restored.finish()
+        assertEquals(listOf("resume", "stop"), again.calls)
+        val finished = store.outbox.sessions().single()
+        assertEquals(listOf(120, 150), finished.exercises.single().sets.map { it.maxBpm })
+        assertEquals(133, finished.averageBpm)    // (120 + 160 + 150 + 100) / 4 = 132.5
+        assertEquals(160, finished.maxBpm)
+    }
+
+    @Test fun `with no session to restore, or a finished one, the sensor is left alone`() {
+        val heart = FakeHeart()
+        controller(heart)
+        assertEquals(emptyList<String>(), heart.calls)
+
+        val session = controller(FakeHeart())
+        session.startFreeWorkout()
+        session.finish()
+        val after = FakeHeart()
+        controller(after)
+        assertEquals(emptyList<String>(), after.calls)
+    }
+
     @Test fun `a set taken back off takes its heart rate with it`() {
         clock = nowMillis
         val session = movingController()
