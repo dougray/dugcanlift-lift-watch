@@ -69,3 +69,18 @@ On a real watch and a real phone, in order:
    against an hour with the app open and the link idle. Advertising is the cost
    this design chose to pay only while the app is open; measure it rather than
    assuming it.
+
+### Heart rate per set
+
+An emulator produces no heart rate, so none of this has been checked anywhere but on the JVM
+(`HeartRatePerSetTest` against the hand-worked fixture, `SetHeartRatesTest`, `LinkHeartRateTest`).
+On the Pixel Watch 2 and the moto g, worn:
+
+1. **A real session.** Three exercises, one of them a superset, wrist down between sets. The bpm
+   line shows on Wear OS 6; each set in Log set's list reads "max … bpm" within a few bpm of the
+   highest reading around it, and Summary reads "Heart rate: average … · max … bpm".
+2. **Versions.** This watch (version 4) with a LIFT Android at version 3: the session arrives
+   whole, with no heart rate. Both at version 4: the figures are on the phone's set rows and the
+   session's line is on its card.
+3. **Refuse the permission.** The session logs exactly as before, with no figures and no heart-rate
+   line, and nothing reads zero.
