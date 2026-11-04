@@ -24,8 +24,10 @@ fun dayKey(epochSeconds: Long, zone: ZoneId = ZoneId.systemDefault()): String =
 /**
  * This workout as the phone will store it.
  *
- * Everything the draft holds travels: every exercise in order, every set with its weight, reps, RPE
- * and **side**. Nothing is filtered.
+ * Everything the draft holds travels: every exercise in order, every set with its weight, reps, RPE,
+ * **side** and heart rate, and the session's average and maximum heart rate. Nothing is filtered —
+ * a phone that settled below LIFT Link version 4 has the heart rate taken off by `LinkSession`, not
+ * here, so the outbox always holds the whole session.
  *
  * `day` is the local day the session **started**: a set logged at 00:10 belongs to the evening it
  * began, which is how the phone's own day-of-record works, and taking it from the finish time would
@@ -39,7 +41,11 @@ fun dayKey(epochSeconds: Long, zone: ZoneId = ZoneId.systemDefault()): String =
  * nothing rather than a lift nobody weighed. [LoggedSet.weightKg] is nullable precisely so that
  * distinction survives, and reps are always present because a logged set has them.
  */
-fun WorkoutDraft.toFinishedSession(zone: ZoneId = ZoneId.systemDefault()): FinishedSession =
+fun WorkoutDraft.toFinishedSession(
+    zone: ZoneId = ZoneId.systemDefault(),
+    /** The session's average and maximum heart rate, when the watch measured any ([SetHeartRates.session]). */
+    heartRate: SessionHeartRate? = null,
+): FinishedSession =
     FinishedSession(
         sessionId = id,
         revision = revision,
@@ -55,6 +61,8 @@ fun WorkoutDraft.toFinishedSession(zone: ZoneId = ZoneId.systemDefault()): Finis
                 sets = exercise.sets.sortedBy { it.orderIndex }.map { it.toLoggedSet() },
             )
         },
+        averageBpm = heartRate?.averageBpm,
+        maxBpm = heartRate?.maxBpm,
     )
 
 /** One set, for the optional streaming report a phone on the bench reads. */
@@ -63,6 +71,7 @@ fun DraftSet.toLoggedSet(): LoggedSet = LoggedSet(
     reps = reps.takeIf { it >= 1 },
     rpe = rpe,
     side = side,
+    maxBpm = maxBpm?.takeIf { it > 0 },
 )
 
 /**

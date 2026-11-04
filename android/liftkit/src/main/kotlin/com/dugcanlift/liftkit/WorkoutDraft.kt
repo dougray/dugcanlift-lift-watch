@@ -97,6 +97,25 @@ data class WorkoutDraft(
         return copy(exercises = updated).commit(nowEpochSeconds)
     }
 
+    /**
+     * Puts the heart rate around each set on the sets [figures] names (`HeartRatePerSet`, worked out
+     * by [SetHeartRates] as each set's window closes). A set that already has a figure keeps it — a
+     * window is worked out once — and an id that is no longer here, a set deleted meanwhile, changes
+     * nothing. Commits only when a figure actually landed.
+     */
+    fun withHeartRates(figures: Map<String, Int>, nowEpochSeconds: Long): WorkoutDraft {
+        if (figures.isEmpty()) return this
+        var changed = false
+        val updated = exercises.map { exercise ->
+            if (exercise.sets.none { it.maxBpm == null && it.id in figures }) exercise
+            else exercise.copy(sets = exercise.sets.map { set ->
+                val figure = figures[set.id]
+                if (set.maxBpm == null && figure != null && figure > 0) { changed = true; set.copy(maxBpm = figure) } else set
+            })
+        }
+        return if (changed) copy(exercises = updated).commit(nowEpochSeconds) else this
+    }
+
     fun finished(atEpochSeconds: Long): WorkoutDraft =
         if (finishedAtEpochSeconds != null) this
         else copy(finishedAtEpochSeconds = atEpochSeconds).commit(atEpochSeconds)
@@ -140,6 +159,13 @@ data class DraftSet(
      */
     @Serializable(with = LogSideAsCode::class) val side: LogSide? = null,
     val completedAtEpochSeconds: Long? = null,
+    /**
+     * The highest heart rate the watch measured around this set, in whole bpm ([HeartRatePerSet]).
+     * **Absent is not measured**, never zero, and a draft written before heart rate per set decodes
+     * with none. The figure belongs to the set, so it goes where the set goes: a deleted set takes it
+     * with it. The samples it came from are never stored, here or anywhere.
+     */
+    val maxBpm: Int? = null,
 ) {
     val volumeKg: Double get() = if (isWarmup) 0.0 else reps * weightKg
 }

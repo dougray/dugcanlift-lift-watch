@@ -114,6 +114,17 @@ and the prescription formatting. `:wear` lays them out and owns the radio.
   its versions and `HeartRateRecorder.heartRatePermission` asks for the one the
   watch uses. A refusal costs the bpm line and nothing else: sets are logged
   either way.
+- **Heart rate per set: the highest bpm around each set, shown and never graded.**
+  The rule is `HeartRatePerSet`, one pure function checked against a fixture
+  worked by hand (`fixtures/heart-rate-per-set.json`, shared with LIFT for
+  Apple Watch, never regenerated): a window from the previous tick (at most five
+  minutes back) to 20 s after the set's own tick or the next tick, whichever is
+  sooner. `SetHeartRates` keeps the last six minutes of readings **in memory
+  only**, settles a set's figure once a reading from after its window arrives
+  (or at Finish), and puts it on the `DraftSet`; the samples are never stored.
+  The set list on Log set reads "max 142 bpm" in muted text and Summary reads
+  "Heart rate: average 118 · max 156 bpm", each only when there is one. Both
+  travel home on LIFT Link version 4, which a version-3 phone receives without.
 
 **Known gaps**, deliberately: nothing holds the link through a screen-off session
 (that wants a `connectedDevice` foreground service, which is its own change with
@@ -142,5 +153,10 @@ export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
 apksigner verify --print-certs wear/build/outputs/apk/release/wear-release.apk
 ```
 
-The signer's SHA-256 must match the one LIFT Android reports. Publish the
-APK as `assets/downloads/lift-wear.apk` in `dugcanlift-site`.
+The signer's SHA-256 must match the one LIFT Android reports. A release is
+published by `.github/workflows/release.yml`, not by hand: a `wear-v<versionName>`
+tag builds, signs and checks the certificate once Doug approves the `release`
+environment, then publishes `lift-wear.apk` and `SHA256SUMS` to a GitHub
+Release. dugcanlift.com/lift/wear-install/ links
+`releases/latest/download/lift-wear.apk`, so nothing is copied into
+`dugcanlift-site`.
