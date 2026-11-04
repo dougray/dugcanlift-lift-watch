@@ -153,5 +153,10 @@ export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
 apksigner verify --print-certs wear/build/outputs/apk/release/wear-release.apk
 ```
 
-The signer's SHA-256 must match the one LIFT Android reports. Publish the
-APK as `assets/downloads/lift-wear.apk` in `dugcanlift-site`.
+The signer's SHA-256 must match the one LIFT Android reports. A release is
+published by `.github/workflows/release.yml`, not by hand: a `wear-v<versionName>`
+tag builds, signs and checks the certificate once Doug approves the `release`
+environment, then publishes `lift-wear.apk` and `SHA256SUMS` to a GitHub
+Release. dugcanlift.com/lift/wear-install/ links
+`releases/latest/download/lift-wear.apk`, so nothing is copied into
+`dugcanlift-site`.
