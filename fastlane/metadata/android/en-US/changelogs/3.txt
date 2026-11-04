@@ -1,3 +1,3 @@
-LIFT Link: pair the watch with LIFT for Android 1.17 or later over Bluetooth, confirming a six-digit code on both. Then send today's workout from the phone and run it on your wrist: the prescription in big digits, last time's numbers, rest that buzzes at zero, left and right for each-side lifts, supersets, drop sets and rest-pause sets, and your heart rate. Finished sessions go back to the phone.
+LIFT Link: pair the watch with LIFT for Android 1.17 or later over Bluetooth with a six-digit code. Then send today's workout and run it on your wrist: the prescription in big digits, last time's numbers, rest that buzzes at zero, left and right sides, supersets, drop sets and rest-pause sets, and your heart rate. Finished sessions go back to the phone with each set's highest heart rate.
 
 Food logging reads better with a screen reader and fits small round screens. LIFT's own icon.
