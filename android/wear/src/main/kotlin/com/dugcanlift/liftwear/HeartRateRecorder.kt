@@ -1,9 +1,13 @@
 package com.dugcanlift.liftwear
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
 import androidx.health.services.client.ExerciseUpdateCallback
 import androidx.health.services.client.HealthServices
 import androidx.health.services.client.clearUpdateCallback
@@ -14,8 +18,11 @@ import androidx.health.services.client.data.ExerciseConfig
 import androidx.health.services.client.data.ExerciseLapSummary
 import androidx.health.services.client.data.ExerciseType
 import androidx.health.services.client.data.ExerciseUpdate
+import androidx.health.services.client.data.ExerciseTrackedStatus
 import androidx.health.services.client.endExercise
+import androidx.health.services.client.getCurrentExerciseInfo
 import androidx.health.services.client.startExercise
+import com.dugcanlift.liftkit.HeartRatePerSet
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -23,6 +30,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.time.Instant
 
 /**
  * Heart rate, and a **real exercise session**, for a lifting session on the wrist.
@@ -53,8 +61,25 @@ import kotlinx.coroutines.launch
  * **No number is shown until a sample has actually landed.** A zero, or a dash pretending to be a
  * reading, is worse than a line that is not there — the Apple watch's `HeartRateLabel` rule, and a
  * watch sitting on a table produces no samples at all.
+ *
+ * **Every reading is handed on, with the time it was taken**, to [onReadings] — the session, which
+ * keeps the last few minutes in memory to work out the heart rate around each set
+ * (`SetHeartRates`, `HeartRatePerSet`) and the session's average and maximum. This class keeps no
+ * reading itself, and nothing anywhere writes one down.
  */
-class HeartRateRecorder(context: Context) {
+/**
+ * What [SessionController] needs from the wrist's heart rate: start it for a new session, pick it
+ * back up for a session restored after the process died, stop it at the end, and where the readings
+ * go. [HeartRateRecorder] is the real one; a test hands the controller a fake that counts the calls.
+ */
+interface HeartRateSource {
+    var onReadings: ((List<HeartRatePerSet.Sample>) -> Unit)?
+    fun start()
+    fun resume()
+    fun stop()
+}
+
+class HeartRateRecorder(context: Context) : HeartRateSource {
     private val appContext = context.applicationContext
     private val client by lazy { HealthServices.getClient(appContext).exerciseClient }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -62,19 +87,17 @@ class HeartRateRecorder(context: Context) {
     private val _bpm = MutableStateFlow<Int?>(null)
     val bpm: StateFlow<Int?> = _bpm.asStateFlow()
 
-    private var samples = 0
-    private var total = 0.0
-    private var highest = 0.0
+    private val main = Handler(Looper.getMainLooper())
 
     @Volatile private var running = false
 
     /**
-     * Average and maximum over the session, or `null` when nothing was ever measured — which is what
-     * a simulator, a refused permission and a watch on a bench all produce, and none of them is a
-     * heart rate of zero.
+     * Where the readings go, on the main thread, as each update arrives: every heart-rate sample in
+     * it, timed in epoch seconds. One update can carry several, and Health Services batches them up
+     * while the screen is off, so a batch can arrive well after its readings were taken — which is
+     * why each carries its own time rather than the time it arrived.
      */
-    val summary: Pair<Int, Int>?
-        get() = if (samples == 0 || highest <= 0.0) null else (total / samples).toInt() to highest.toInt()
+    override var onReadings: ((List<HeartRatePerSet.Sample>) -> Unit)? = null
 
     val hasPermission: Boolean
         get() = appContext.checkSelfPermission(heartRatePermission()) == PackageManager.PERMISSION_GRANTED
@@ -87,12 +110,16 @@ class HeartRateRecorder(context: Context) {
         }
 
         override fun onExerciseUpdateReceived(update: ExerciseUpdate) {
-            val latest = update.latestMetrics.getData(DataType.HEART_RATE_BPM).lastOrNull()?.value ?: return
-            if (latest <= 0.0) return
-            samples++
-            total += latest
-            if (latest > highest) highest = latest
-            _bpm.value = Math.round(latest).toInt()
+            val points = update.latestMetrics.getData(DataType.HEART_RATE_BPM)
+            if (points.isEmpty()) return
+            // A data point is timed from boot; the session's ticks are wall-clock seconds.
+            val boot = Instant.ofEpochMilli(System.currentTimeMillis() - SystemClock.elapsedRealtime())
+            val readings = points
+                .filter { HeartRatePerSet.isReading(it.value) }
+                .map { HeartRatePerSet.Sample(it.getTimeInstant(boot).toEpochMilli() / 1000.0, it.value) }
+            if (readings.isEmpty()) return
+            _bpm.value = Math.round(readings.maxBy { it.atSeconds }.bpm).toInt()
+            main.post { onReadings?.invoke(readings) }
         }
 
         override fun onLapSummaryReceived(lapSummary: ExerciseLapSummary) = Unit
@@ -113,28 +140,62 @@ class HeartRateRecorder(context: Context) {
      * Starts a weightlifting exercise. Safe to call when Health Services is absent or the permission
      * was refused: it returns having done nothing, and the lifting session is unaffected.
      */
-    fun start() {
+    override fun start() {
         if (running || !hasPermission) return
         running = true
-        samples = 0
-        total = 0.0
-        highest = 0.0
         _bpm.value = null
-        val config = ExerciseConfig.Builder(ExerciseType.WEIGHTLIFTING)
-            .setDataTypes(setOf(DataType.HEART_RATE_BPM))
-            .setIsAutoPauseAndResumeEnabled(false)
-            .setIsGpsEnabled(false)
-            .build()
         scope.launch {
             runCatching {
                 client.setUpdateCallback(callback)
-                client.startExercise(config)
+                client.startExercise(exerciseConfig())
             }.onFailure { running = false }
         }
     }
 
-    /** Ends the exercise. [summary]'s two numbers survive until the next [start]. */
-    fun stop() {
+    /**
+     * Picks heart rate back up for a session the watch restored after Wear killed this process
+     * between sets. Without it, the rest of that session had no bpm on screen and no figure on any
+     * set, because only the two ways of *starting* a session ever called [start].
+     *
+     * **The exercise usually outlived the process.** Health Services owns it, not this app, so after
+     * a kill it is normally still running and still this app's: then this only registers the
+     * callback again, which is how Health Services hands a returning app its updates, and starting a
+     * second exercise on top would end the first. When there is none, it starts one as [start] does.
+     * When another app's exercise is running, it does nothing: a restore is not the lifter asking for
+     * a new session, so it must not end somebody's run to take the sensor.
+     *
+     * `RestrictedApi` is suppressed for [ExerciseTrackedStatus] alone. In 1.1.0 the annotation class
+     * holding those constants is marked library-only, while the public
+     * [androidx.health.services.client.data.ExerciseInfo.exerciseTrackedStatus] returns exactly those
+     * values and the library offers no other way to read them.
+     */
+    @SuppressLint("RestrictedApi")
+    override fun resume() {
+        if (running || !hasPermission) return
+        running = true
+        _bpm.value = null
+        scope.launch {
+            runCatching {
+                when (client.getCurrentExerciseInfo().exerciseTrackedStatus) {
+                    ExerciseTrackedStatus.OWNED_EXERCISE_IN_PROGRESS -> client.setUpdateCallback(callback)
+                    ExerciseTrackedStatus.OTHER_APP_IN_PROGRESS -> running = false
+                    else -> {
+                        client.setUpdateCallback(callback)
+                        client.startExercise(exerciseConfig())
+                    }
+                }
+            }.onFailure { running = false }
+        }
+    }
+
+    private fun exerciseConfig(): ExerciseConfig = ExerciseConfig.Builder(ExerciseType.WEIGHTLIFTING)
+        .setDataTypes(setOf(DataType.HEART_RATE_BPM))
+        .setIsAutoPauseAndResumeEnabled(false)
+        .setIsGpsEnabled(false)
+        .build()
+
+    /** Ends the exercise. */
+    override fun stop() {
         if (!running) return
         running = false
         _bpm.value = null

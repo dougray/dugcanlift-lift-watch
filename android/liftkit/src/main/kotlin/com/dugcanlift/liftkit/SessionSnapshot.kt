@@ -32,6 +32,13 @@ data class SessionSnapshot(
     val exerciseIndex: Int = 0,
     val restIntervalSeconds: Int = RestTimer.DEFAULT_SECONDS,
     val restStartedAtMillis: Long? = null,
+    /**
+     * The running total behind the session's heart-rate average and maximum
+     * ([SetHeartRates.totals]), so a process death does not cut the session's pair down to the
+     * readings after it. A total, never a reading. Absent before the first reading, and in every
+     * snapshot written before this field.
+     */
+    val heartRateTotals: SetHeartRates.Totals? = null,
 ) {
     /**
      * The session this snapshot describes, or `null` when it held no plan — which is a free-entry
@@ -53,7 +60,12 @@ data class SessionSnapshot(
     companion object {
         private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
-        fun of(draft: WorkoutDraft, guided: GuidedSession?, rest: RestTimer): SessionSnapshot =
+        fun of(
+            draft: WorkoutDraft,
+            guided: GuidedSession?,
+            rest: RestTimer,
+            heartRateTotals: SetHeartRates.Totals? = null,
+        ): SessionSnapshot =
             SessionSnapshot(
                 draft = draft,
                 planWire = guided?.let { Base64.getEncoder().encodeToString(LinkPayloads.encodePlan(it.plan)) },
@@ -61,6 +73,7 @@ data class SessionSnapshot(
                 exerciseIndex = guided?.exerciseIndex ?: 0,
                 restIntervalSeconds = rest.intervalSeconds,
                 restStartedAtMillis = rest.startedAtMillis,
+                heartRateTotals = heartRateTotals,
             )
 
         fun encode(snapshot: SessionSnapshot): String = json.encodeToString(snapshot)
