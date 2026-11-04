@@ -1,10 +1,13 @@
 package com.dugcanlift.liftwear
 
 import com.dugcanlift.liftkit.GuidedSession
+import com.dugcanlift.liftkit.HeartRatePerSet
 import com.dugcanlift.liftkit.RestTimer
 import com.dugcanlift.liftkit.SetTypeLabels
 import com.dugcanlift.liftkit.groupLabels
+import com.dugcanlift.liftkit.SessionHeartRate
 import com.dugcanlift.liftkit.SessionSnapshot
+import com.dugcanlift.liftkit.SetHeartRates
 import com.dugcanlift.liftkit.WeightUnit
 import com.dugcanlift.liftkit.WorkoutDraft
 import com.dugcanlift.liftkit.isScheduledFor
@@ -34,11 +37,19 @@ import java.util.UUID
  * **A session is persisted after every single edit.** Not on a timer and not on pause: Wear will kill
  * this process while the watch is on a wrist between sets, and there is no `transferUserInfo` queue
  * behind this link to re-deliver anything.
+ *
+ * **Heart rate rides along and never leads.** Readings from [HeartRateRecorder] go into a
+ * [SetHeartRates] held here, in memory only; each set's figure lands on its draft set once its
+ * window has closed, and the session's average and maximum travel with the finished session. A
+ * process death loses the readings and nothing else — a set whose window was still open then simply
+ * has no figure — and a watch with no heart rate at all logs exactly as it did before. The session's
+ * average and maximum do survive one, as a running total in the snapshot rather than as readings,
+ * and a restored session picks the sensor back up ([HeartRateSource.resume]).
  */
 class SessionController(
     private val store: SessionStore,
     private val link: PhoneLinkPeripheral,
-    private val heart: HeartRateRecorder?,
+    private val heart: HeartRateSource?,
     private val clockMillis: () -> Long = System::currentTimeMillis,
     private val idFactory: () -> String = { UUID.randomUUID().toString() },
 ) {
@@ -53,6 +64,13 @@ class SessionController(
 
     private val _unit = MutableStateFlow(store.unit)
     val unit: StateFlow<WeightUnit> = _unit.asStateFlow()
+
+    /** Readings of the last few minutes and each set's figure. Never stored: see the class comment. */
+    private val heartRates = SetHeartRates()
+
+    /** The session's average and maximum so far, for the summary page. `null` until a reading lands. */
+    private val _heartRate = MutableStateFlow<SessionHeartRate?>(null)
+    val heartRate: StateFlow<SessionHeartRate?> = _heartRate.asStateFlow()
 
     /** How many finished sessions the phone has not acknowledged. Shown on the summary page. */
     private val _pending = MutableStateFlow(store.outbox.count)
@@ -71,6 +89,14 @@ class SessionController(
             _pending.value = store.outbox.count
         }
         link.onReady = { flushOutbox() }
+        heart?.onReadings = ::heartReadings
+        // Last, once readings have somewhere to go. A session still running when the process died
+        // gets its heart rate back; a finished one, or none, leaves the sensor alone.
+        _draft.value?.let { restored ->
+            heartRates.resume(store.session?.heartRateTotals, restored)
+            _heartRate.value = heartRates.session
+            heart?.resume()
+        }
     }
 
     private fun nowSeconds(): Long = clockMillis() / 1000
@@ -114,7 +140,7 @@ class SessionController(
         _draft.value = workout
         _guided.value = GuidedSession.start(plan)
         _rest.value = RestTimer()
-        heart?.start()
+        startHeartRate()
         persist()
         return true
     }
@@ -127,8 +153,30 @@ class SessionController(
         )
         _guided.value = null
         _rest.value = RestTimer()
-        heart?.start()
+        startHeartRate()
         persist()
+    }
+
+    private fun startHeartRate() {
+        heartRates.reset()
+        _heartRate.value = null
+        heart?.start()
+    }
+
+    /**
+     * Readings from the sensor, timed when they were taken. Each set whose window a reading has now
+     * passed gets its figure — the highest reading in that window, or none — and keeps it. Called on
+     * the main thread, like every other edit here.
+     */
+    fun heartReadings(readings: List<HeartRatePerSet.Sample>) {
+        val current = _draft.value ?: return
+        readings.forEach { heartRates.record(it.atSeconds, it.bpm) }
+        _heartRate.value = heartRates.session
+        val settled = heartRates.settle(current, nowSeconds())
+        if (settled !== current) {
+            _draft.value = settled
+            persist()
+        }
     }
 
     fun addExercise(name: String, equipment: String?, refId: String) {
@@ -252,10 +300,13 @@ class SessionController(
      */
     fun finish() {
         val current = _draft.value ?: return
-        val finished = current.finished(nowSeconds())
-        store.enqueue(finished.toFinishedSession())
+        // Every window still open closes here, with the readings there are: there will be no more.
+        val finished = heartRates.settle(current, nowSeconds(), finishing = true).finished(nowSeconds())
+        store.enqueue(finished.toFinishedSession(heartRate = heartRates.session))
         _pending.value = store.outbox.count
         heart?.stop()
+        heartRates.reset()
+        _heartRate.value = null
         _draft.value = null
         _guided.value = null
         _rest.value = RestTimer()
@@ -275,6 +326,6 @@ class SessionController(
 
     private fun persist() {
         val current = _draft.value
-        store.session = current?.let { SessionSnapshot.of(it, _guided.value, _rest.value) }
+        store.session = current?.let { SessionSnapshot.of(it, _guided.value, _rest.value, heartRates.totals) }
     }
 }

@@ -276,6 +276,32 @@ fun LogSetScreen(session: SessionController, exerciseId: String, onLogged: (rest
                     colors = ChipDefaults.secondaryChipColors(),
                 )
             }
+
+            // The exercise's sets so far, each with the heart rate around it once its window has
+            // closed. Below the controls, because the next set is what this screen is for.
+            if (exercise.sets.isNotEmpty()) {
+                item { ListHeader { Text("Sets") } }
+                exercise.sets.forEachIndexed { index, set ->
+                    item { LoggedSetRow(index + 1, set, unit) }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * "2. 60 x 8 @8", and under it, muted, "max 142 bpm" — only when the set has a figure. Shown, never
+ * graded: no color, no zone, nothing said about what the number means.
+ */
+@Composable
+private fun LoggedSetRow(number: Int, set: DraftSet, unit: WeightUnit) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 1.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text("$number. ${set.display(unit)}", style = MaterialTheme.typography.caption1, maxLines = 1)
+        HeartRateLabels.set(set.maxBpm)?.let { line ->
+            Text(line, style = MaterialTheme.typography.caption3, color = DclColors.Muted, maxLines = 1)
         }
     }
 }
@@ -463,6 +489,7 @@ fun SessionSummaryScreen(session: SessionController, linkStatus: String, onFinis
     val draft by session.draft.collectAsState()
     val unit by session.unit.collectAsState()
     val pending by session.pending.collectAsState()
+    val heartRate by session.heartRate.collectAsState()
     val current = draft ?: return
 
     Scaffold(timeText = { TimeText() }) {
@@ -474,6 +501,8 @@ fun SessionSummaryScreen(session: SessionController, linkStatus: String, onFinis
                     "${Math.round(unit.fromKilograms(current.totalVolumeKg))} ${unit.abbreviation} lifted"
                 )
             }
+            // Only once something was measured: a watch on a bench has no line, never a zero.
+            HeartRateLabels.session(heartRate)?.let { line -> item { SessionCaption(line) } }
             item { SessionCaption(linkStatus) }
             if (pending > 0) {
                 item { SessionCaption("$pending session${if (pending == 1) "" else "s"} waiting for your phone") }
