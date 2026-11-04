@@ -1,7 +1,9 @@
 package com.dugcanlift.liftwear
 
 import androidx.test.core.app.ApplicationProvider
+import com.dugcanlift.liftkit.HeartRatePerSet
 import com.dugcanlift.liftkit.RestTimer
+import com.dugcanlift.liftkit.SessionHeartRate
 import com.dugcanlift.liftkit.WeightUnit
 import com.dugcanlift.liftkit.headline
 import com.dugcanlift.liftkit.link.LogSide
@@ -344,6 +346,80 @@ class SessionControllerTest {
         assertEquals(1, SessionStore(ApplicationProvider.getApplicationContext()).outbox.count)
         store.acknowledge(sessionId)
         assertEquals(0, SessionStore(ApplicationProvider.getApplicationContext()).outbox.count)
+    }
+
+    // ---- heart rate per set ------------------------------------------------------------------------------
+
+    /** A controller whose clock moves, because a set's window is measured in seconds. */
+    private var clock = nowMillis
+
+    private fun movingController() = SessionController(
+        store = store, link = link, heart = null, clockMillis = { clock }, idFactory = { "id-${ids++}" },
+    )
+
+    private fun reading(secondsAfterStart: Long, bpm: Double) =
+        HeartRatePerSet.Sample((nowMillis / 1000 + secondsAfterStart).toDouble(), bpm)
+
+    private fun at(secondsAfterStart: Long) { clock = nowMillis + secondsAfterStart * 1000 }
+
+    @Test fun `a set gets the highest heart rate around it once its window closes, and keeps it`() {
+        clock = nowMillis
+        val session = movingController()
+        session.startFreeWorkout()
+        session.addExercise("Squat", "barbell", "squat-barbell")
+        val id = session.draft.value!!.exercises.single().id
+        at(60); session.logSet(id, 100.0, 5, null, null)
+        at(70); session.heartReadings(listOf(reading(55, 128.0), reading(65, 141.4)))
+        assertNull(session.draft.value!!.exercises.single().sets.single().maxBpm)    // still open
+        at(85); session.heartReadings(listOf(reading(81, 150.0)))
+        assertEquals(141, session.draft.value!!.exercises.single().sets.single().maxBpm)
+        // On disk too, so a process death after the window closed keeps it.
+        assertEquals(141, store.session!!.draft.exercises.single().sets.single().maxBpm)
+        // And the session's pair is there for the summary page.
+        assertEquals(SessionHeartRate(averageBpm = 140, maxBpm = 150), session.heartRate.value)
+    }
+
+    @Test fun `finishing closes every open window and sends the figures and the session's pair home`() {
+        clock = nowMillis
+        val session = movingController()
+        session.startFreeWorkout()
+        session.addExercise("Squat", "barbell", "squat-barbell")
+        val id = session.draft.value!!.exercises.single().id
+        at(60); session.logSet(id, 100.0, 5, null, null)
+        at(120); session.logSet(id, 100.0, 5, null, null)
+        at(125); session.heartReadings(listOf(reading(70, 130.0), reading(121, 160.0)))
+        session.finish()
+
+        val finished = store.outbox.sessions().single()
+        assertEquals(listOf(130, 160), finished.exercises.single().sets.map { it.maxBpm })
+        assertEquals(145, finished.averageBpm)
+        assertEquals(160, finished.maxBpm)
+        assertNull(session.heartRate.value)
+    }
+
+    @Test fun `a watch that measured nothing logs exactly as before, with no heart rate anywhere`() {
+        val session = controller()
+        session.startFreeWorkout()
+        session.addExercise("Squat", "barbell", "squat-barbell")
+        session.logSet(session.draft.value!!.exercises.single().id, 100.0, 5, null, null)
+        session.finish()
+        val finished = store.outbox.sessions().single()
+        assertEquals(false, finished.recordsHeartRate)
+        assertEquals(5, finished.exercises.single().sets.single().reps)
+    }
+
+    @Test fun `a set taken back off takes its heart rate with it`() {
+        clock = nowMillis
+        val session = movingController()
+        session.startFreeWorkout()
+        session.addExercise("Squat", "barbell", "squat-barbell")
+        val id = session.draft.value!!.exercises.single().id
+        at(60); session.logSet(id, 100.0, 5, null, null)
+        at(100); session.logSet(id, 100.0, 5, null, null)
+        at(130); session.heartReadings(listOf(reading(70, 130.0), reading(110, 150.0), reading(125, 120.0)))
+        assertEquals(listOf(130, 150), session.draft.value!!.exercises.single().sets.map { it.maxBpm })
+        session.removeLastSet(id)
+        assertEquals(listOf(130), session.draft.value!!.exercises.single().sets.map { it.maxBpm })
     }
 
     @Test fun `the unit is the lifter's own and outlives the session`() {
