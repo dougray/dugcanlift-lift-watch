@@ -14,7 +14,7 @@ was `LiftKit` here in `Watch/LiftWatchKit`, and the `workout-sync` /
 Watch issues there. This repository's history before the removal still holds
 the old copy, but it is no longer maintained.
 
-Licensed under AGPL-3.0, matching the phone apps. See `LICENSE` and `NOTICE`.
+Licensed under Apache-2.0, matching the phone apps. See `LICENSE` and `NOTICE`.
 
 ## Layout
 
