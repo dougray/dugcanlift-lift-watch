@@ -1,0 +1,31 @@
+LIFT for Wear OS is LIFT on the watch itself: log food and work through a training session set by set, with a rest timer and your heart rate on the screen. No account, no ads, no analytics. The watch app has no internet permission at all and uses no Google Play Services.
+
+FOOD LOG
+Search the bundled USDA library of 7,793 foods by voice or the watch keyboard, set the amount in grams or ounces with the crown or bezel, and pick breakfast, lunch, dinner or snack. The watch says Logged once it has it. Everything works with no phone and no connection, and the watch keeps your most recent 200 entries, however old they are.
+
+QR EXPORT
+Export logged foods draws your log as QR codes, several in sequence if you've logged a lot. Scan them with LIFT on the web, using Scan from watch. Nothing clears on its own: once everything has arrived, Done asks a second time before it clears the log.
+
+LIFT LINK
+Pair the watch with LIFT for Android 1.17 or later over Bluetooth, straight from phone to watch, with no account or server. Both screens show the same six-digit code, so you know you paired the watch you meant to. Then send today's workout or any routine from the phone, or ask for today's plan from the watch. Pairing is optional; the watch works on its own without it.
+
+WORKOUTS ON YOUR WRIST
+Each set shows what you were asked to do in the biggest digits on the screen, last time's numbers when the phone sent them, and your heart rate. Log set fills in from the prescription; change whatever you actually did. Rest starts by itself and the watch buzzes when it runs out. Weights in pounds or kilograms. A workout you haven't finished is there to resume, even if the app was closed. Start workout with nothing sent runs the same screens with no prescription.
+
+LEFT AND RIGHT, SUPERSETS, DROP SETS
+A lift done one side at a time counts each side, so 3 x 8 each side is six sets, and the set line says which side is next. Supersets and circuits go round by round, one set of each exercise before any rest. There's no rest before a drop set and fifteen seconds before a rest-pause set. A target with no weight shows no weight, and a set logged without one reaches the phone without one, not as a zero.
+
+HEART RATE
+Read from the watch's own sensor during a session. The watch keeps only the highest heart rate around each set and the session's average and highest; the rest is shown and not saved. Say no to the permission and every other part of a session works the same.
+
+BACK TO YOUR PHONE
+Finished sessions go back into your log on the phone, with each set's highest heart rate and the session's average and highest. A session waits on the watch until the phone confirms it has it, so a lost connection loses nothing. Your food log does not cross the link; it comes back by QR.
+
+PRIVACY
+Nothing you log leaves the watch except by QR code on your screen or over LIFT Link to the phone you paired. Full privacy policy at dugcanlift.com/app/privacy.
+
+Needs a watch running Wear OS 3 or newer.
+
+LIFT is not a medical device and does not diagnose, treat, cure or prevent any medical condition. Talk to a doctor or dietitian before making big changes to how you eat or train.
+
+Licensed under the Apache License 2.0.
