@@ -1,5 +1,5 @@
 [versions]
-agp = "9.5.0"
+agp = "9.5.1"
 kotlin = "2.4.21"
 serialization = "1.12.0"
 coroutines = "1.11.0"
@@ -10,7 +10,7 @@ wearInput = "1.2.0"
 healthServices = "1.1.0"
 # Not a dependency of this app's code: a floor for the Guava that Health Services brings in.
 # See the constraint in wear/build.gradle.kts.
-guava = "33.7.2-android"
+guava = "33.8.0-android"
 zxing = "3.5.4"
 junit = "4.13.2"
 robolectric = "4.17"
