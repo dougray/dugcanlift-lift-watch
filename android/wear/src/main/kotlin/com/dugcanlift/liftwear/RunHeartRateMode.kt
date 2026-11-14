@@ -13,8 +13,14 @@ import kotlinx.coroutines.sync.withLock
  * rules can be tested against a fake. [HealthServicesExerciseClient] is the real one.
  */
 interface ExerciseClientLike {
-    /** Whose exercise, if anyone's, is running on this watch right now. */
-    enum class Tracked { NONE, OWNED_IN_PROGRESS, OTHER_APP_IN_PROGRESS }
+    /**
+     * Whose exercise, if anyone's, is running on this watch right now.
+     *
+     * An exercise of this app's own is told apart by its type: a run is `RUNNING` and a lifting
+     * session's is always `WEIGHTLIFTING`, so [OWNED_RUN] is one this mode started (and may adopt or
+     * end) and [OWNED_OTHER] is the lifting session's, which this mode never touches.
+     */
+    enum class Tracked { NONE, OWNED_RUN, OWNED_OTHER, OTHER_APP_IN_PROGRESS }
 
     /** Whether the heart-rate permission is granted. Without it nothing here may start. */
     val hasPermission: Boolean
@@ -24,10 +30,26 @@ interface ExerciseClientLike {
     /**
      * Starts a `RUNNING` exercise with GPS off and heart rate its only data type, and delivers each
      * batch of readings to [onReadings] — timed in epoch seconds, as they were taken. [onEnded] is
-     * called if the exercise ends without [end] having been called. Throws when Health Services
-     * would not start it, having left nothing registered.
+     * called if the exercise ends without [end] having been called: there is then nothing to end.
+     * [onRegistrationFailed] is the other case: Health Services would not take the callback, **the
+     * exercise may be running with nobody listening**, and the mode ends it. Throws when Health
+     * Services would not start it, having left nothing registered.
      */
-    suspend fun startRun(onReadings: (List<HeartRatePerSet.Sample>) -> Unit, onEnded: () -> Unit)
+    suspend fun startRun(
+        onReadings: (List<HeartRatePerSet.Sample>) -> Unit,
+        onEnded: () -> Unit,
+        onRegistrationFailed: () -> Unit,
+    )
+
+    /**
+     * Listens to a run this app's process started and then lost track of (it was killed): registers
+     * the callbacks again and starts nothing. Only ever called when [trackedStatus] said [Tracked.OWNED_RUN].
+     */
+    suspend fun adoptRun(
+        onReadings: (List<HeartRatePerSet.Sample>) -> Unit,
+        onEnded: () -> Unit,
+        onRegistrationFailed: () -> Unit,
+    )
 
     /** Ends the exercise [startRun] started and stops listening. */
     suspend fun end()
@@ -47,6 +69,17 @@ interface ExerciseClientLike {
  * lifting exercise is never touched; when a lifting session starts while a run is going, [yieldToLifting]
  * lets go of the run **without** ending anything, because the lifting exercise's own start replaces it
  * and an end issued here could land on the new one.
+ *
+ * **Every call into Health Services goes through [clientCalls], which the lifting session's own
+ * [HeartRateRecorder] shares**, so a run's start or end and the lifting exercise's start or end can
+ * never interleave: an end that began first has finished before lifting starts, and a lifting start
+ * that began first has finished before the run looks. On top of that the run **checks whose exercise
+ * it is before it ends one** ([ExerciseClientLike.Tracked.OWNED_RUN]) and skips the end otherwise.
+ *
+ * **A run left behind by a killed process is adopted or ended.** After a kill the exercise is still
+ * this app's and still running; [start] re-attaches to it (a `RUNNING` one, never a lifting one), and
+ * [checkForOrphan], called once at launch, ends it if no start has come within
+ * [RunHeartRatePolicy.orphanGraceMillis].
  *
  * **It always ends what it started.** [stop] is idempotent and safe at any moment, including while the
  * exercise is still starting. It is called on the phone's `RUN_HR_STOP`, on link loss, and by a timer:
@@ -68,9 +101,10 @@ class RunHeartRateMode(
     private val clockMillis: () -> Long = System::currentTimeMillis,
     private val liftingActive: () -> Boolean = { false },
     private val policy: RunHeartRatePolicy = RunHeartRatePolicy(),
+    /** The one lock every exercise-client call in the app takes; shared with [HeartRateRecorder]. */
+    private val clientCalls: Mutex = Mutex(),
 ) {
     private val lock = Any()
-    private val clientCalls = Mutex()
 
     /** The phone wants readings. Set by [start], cleared by every way a run ends. */
     private var wanted = false
@@ -158,6 +192,21 @@ class RunHeartRateMode(
         runCatching { send(bpm, at) }
     }
 
+    /**
+     * Health Services would not take the callback, but the exercise may well be running: it is ours,
+     * so it is ended — not treated as already gone, which would leave it running for nobody.
+     */
+    private fun onRegistrationFailed(forEpoch: Int) {
+        val end = synchronized(lock) {
+            if (forEpoch != epoch) return
+            wanted = false
+            watchdog?.cancel()
+            watchdog = null
+            true
+        }
+        if (end) scope.launch { reconcile() }
+    }
+
     private fun onEnded(forEpoch: Int) {
         synchronized(lock) {
             if (forEpoch != epoch) return
@@ -180,7 +229,11 @@ class RunHeartRateMode(
                 want && !live -> if (!begin()) return
                 !want && live -> {
                     synchronized(lock) { active = false; epoch++ }
-                    runCatching { exercise.end() }
+                    // Only a run is ended here. If the lifting session's exercise has taken the
+                    // slot (or it cannot be told), ending "the exercise" would end the wrong one.
+                    if (runCatching { exercise.trackedStatus() }.getOrNull() == ExerciseClientLike.Tracked.OWNED_RUN) {
+                        runCatching { exercise.end() }
+                    }
                 }
                 else -> return
             }
@@ -191,13 +244,19 @@ class RunHeartRateMode(
     private suspend fun begin(): Boolean {
         val myEpoch = synchronized(lock) { ++epoch }
         val tracked = runCatching { exercise.trackedStatus() }.getOrNull()
-        val refused = tracked != ExerciseClientLike.Tracked.NONE || liftingActive() || !exercise.hasPermission
+        // A run left by a killed process is this mode's to adopt; nothing else already running is.
+        val adopt = tracked == ExerciseClientLike.Tracked.OWNED_RUN
+        val refused = !(adopt || tracked == ExerciseClientLike.Tracked.NONE) ||
+            liftingActive() || !exercise.hasPermission ||
+            synchronized(lock) { epoch != myEpoch }       // a lifting session took over while this waited
         if (refused) return giveUp()
         val started = runCatching {
-            exercise.startRun(
-                onReadings = { onReadings(myEpoch, it) },
-                onEnded = { onEnded(myEpoch) },
-            )
+            val readings = { samples: List<HeartRatePerSet.Sample> -> onReadings(myEpoch, samples) }
+            if (adopt) {
+                exercise.adoptRun(readings, { onEnded(myEpoch) }, { onRegistrationFailed(myEpoch) })
+            } else {
+                exercise.startRun(readings, { onEnded(myEpoch) }, { onRegistrationFailed(myEpoch) })
+            }
         }.isSuccess
         if (!started) return giveUp()
         val handedOver = synchronized(lock) {
@@ -214,6 +273,37 @@ class RunHeartRateMode(
             watchdog = null
         }
         return false
+    }
+
+    // ---- a run left behind by a killed process -------------------------------------------------------
+
+    /**
+     * Called once at launch. A process killed mid-run leaves the exercise running and this app's, and
+     * nobody to end it; if it is a `RUNNING` one and no [start] has adopted it within
+     * [RunHeartRatePolicy.orphanGraceMillis], it is ended. A `WEIGHTLIFTING` exercise is the lifting
+     * session's and is never looked at here, and nothing is ended while a lifting session is on screen.
+     */
+    fun checkForOrphan() {
+        scope.launch {
+            if (!exercise.hasPermission) return@launch
+            val found = clientCalls.withLock { runCatching { exercise.trackedStatus() }.getOrNull() }
+            if (found != ExerciseClientLike.Tracked.OWNED_RUN) return@launch
+            val foundAt = clockMillis()
+            while (true) {
+                val wait = synchronized(lock) {
+                    if (wanted || active) return@launch            // adopted: the silence timer has it now
+                    policy.millisUntilOrphanExpired(clockMillis(), foundAt)
+                }
+                if (wait <= 0) break
+                delay(wait)
+            }
+            clientCalls.withLock {
+                if (synchronized(lock) { wanted || active } || liftingActive()) return@withLock
+                if (runCatching { exercise.trackedStatus() }.getOrNull() == ExerciseClientLike.Tracked.OWNED_RUN) {
+                    runCatching { exercise.end() }
+                }
+            }
+        }
     }
 
     // ---- the phone that vanished --------------------------------------------------------------------

@@ -17,14 +17,25 @@ import com.dugcanlift.liftkit.HeartRatePerSet
 data class RunHeartRatePolicy(
     val minSecondsBetweenReadings: Long = 5,
     val silenceLimitMillis: Long = 5 * 60 * 1000L,
+    /** How long a run found left behind by a killed process waits for a start to adopt it. */
+    val orphanGraceMillis: Long = 5 * 60 * 1000L,
 ) {
     /**
      * Whether a reading taken at [atSeconds] goes to the phone, given the one last sent. A reading
-     * not newer than that by [minSecondsBetweenReadings] is held back, and so is an older one: a
-     * batch Health Services delivered late must not send the phone backwards in time.
+     * not newer than that by [minSecondsBetweenReadings] is held back, and so is a slightly older one:
+     * a batch Health Services delivered late must not send the phone backwards in time.
      */
-    fun shouldSend(atSeconds: Long, lastSentAtSeconds: Long?): Boolean =
-        lastSentAtSeconds == null || atSeconds - lastSentAtSeconds >= minSecondsBetweenReadings
+    fun shouldSend(atSeconds: Long, lastSentAtSeconds: Long?): Boolean = when {
+        lastSentAtSeconds == null -> true
+        // The wall clock stepped back (a sync, a time-zone-less correction): readings are now timed
+        // before the last one sent, and holding them all until the clock catches up would silence the
+        // run. A reading only a few seconds older is a late batch, and is still held.
+        atSeconds < lastSentAtSeconds - minSecondsBetweenReadings -> true
+        else -> atSeconds - lastSentAtSeconds >= minSecondsBetweenReadings
+    }
+
+    fun millisUntilOrphanExpired(nowMillis: Long, foundAtMillis: Long): Long =
+        (orphanGraceMillis - (nowMillis - foundAtMillis)).coerceAtLeast(0)
 
     fun isSilent(nowMillis: Long, lastContactMillis: Long): Boolean =
         nowMillis - lastContactMillis >= silenceLimitMillis

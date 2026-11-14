@@ -288,6 +288,8 @@ build plan, item 16, "Heart rate per set"):
   session has a heart rate at all**; a mask of `0x00` is never written and is refused, so a session
   with no heart rate has one encoding, and it is version 3's.
 
+**The time is a `u32`, so a reading timed past 0xFFFFFFFF (the year 2106) cannot be sent and is dropped** rather than wrapped or clamped.
+
 **Zero is never a heart rate.** A `0` bpm byte is refused on the way in, and on the way out a heart
 rate the byte cannot carry (zero, negative, over 255) is **left off rather than refused** — the one
 field here treated that way, because a heart rate is the one thing on this wire whose loss costs
@@ -349,7 +351,10 @@ readings go to the phone as `RUN_HR`. It **refuses** — does nothing — when t
 exercise of its own (a lifting session, or another app's), when the heart-rate permission is not
 granted, or when Health Services will not start one; and it never ends an exercise it did not start.
 It ends its own on `RUN_HR_STOP`, on **link loss**, and **when nothing has been heard from the phone
-for five minutes**, so a phone that vanished never leaves an exercise draining the battery. Nothing
+for five minutes**, so a phone that vanished never leaves an exercise draining the battery. It checks
+the exercise is a `RUNNING` one before ending anything, shares one lock with the lifting session's
+own heart-rate exercise so the two can never interleave, and **adopts** a `RUNNING` exercise a killed
+process left behind (or ends it if no `RUN_HR_START` comes within five minutes of launch). Nothing
 about the run is kept on the watch: no reading is written down.
 
 **An older peer.** A version-4 build has never heard of these opcodes and answers each with

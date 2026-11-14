@@ -30,6 +30,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.time.Instant
 
 /**
@@ -79,7 +81,16 @@ interface HeartRateSource {
     fun stop()
 }
 
-class HeartRateRecorder(context: Context) : HeartRateSource {
+class HeartRateRecorder(
+    context: Context,
+    /**
+     * The one lock every call into Health Services' exercise client takes, shared with
+     * `RunHeartRateMode`. A lifting session's start or end and a run's can never interleave: otherwise
+     * a run's `endExercise()` could land after this recorder's `startExercise` and end the lifting
+     * exercise, or this recorder's start could land mid-way through a run's.
+     */
+    private val gate: Mutex = Mutex(),
+) : HeartRateSource {
     private val appContext = context.applicationContext
     private val client by lazy { HealthServices.getClient(appContext).exerciseClient }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -145,10 +156,12 @@ class HeartRateRecorder(context: Context) : HeartRateSource {
         running = true
         _bpm.value = null
         scope.launch {
-            runCatching {
-                client.setUpdateCallback(callback)
-                client.startExercise(exerciseConfig())
-            }.onFailure { running = false }
+            gate.withLock {
+                runCatching {
+                    client.setUpdateCallback(callback)
+                    client.startExercise(exerciseConfig())
+                }.onFailure { running = false }
+            }
         }
     }
 
@@ -175,16 +188,25 @@ class HeartRateRecorder(context: Context) : HeartRateSource {
         running = true
         _bpm.value = null
         scope.launch {
-            runCatching {
-                when (client.getCurrentExerciseInfo().exerciseTrackedStatus) {
-                    ExerciseTrackedStatus.OWNED_EXERCISE_IN_PROGRESS -> client.setUpdateCallback(callback)
+            gate.withLock { runCatching {
+                val info = client.getCurrentExerciseInfo()
+                when (info.exerciseTrackedStatus) {
+                    // Only a lifting exercise is this session's to pick back up. This app's other kind,
+                    // a run a killed process left behind, is replaced by the session starting its own.
+                    ExerciseTrackedStatus.OWNED_EXERCISE_IN_PROGRESS ->
+                        if (info.exerciseType == ExerciseType.WEIGHTLIFTING) {
+                            client.setUpdateCallback(callback)
+                        } else {
+                            client.setUpdateCallback(callback)
+                            client.startExercise(exerciseConfig())
+                        }
                     ExerciseTrackedStatus.OTHER_APP_IN_PROGRESS -> running = false
                     else -> {
                         client.setUpdateCallback(callback)
                         client.startExercise(exerciseConfig())
                     }
                 }
-            }.onFailure { running = false }
+            }.onFailure { running = false } }
         }
     }
 
@@ -200,8 +222,10 @@ class HeartRateRecorder(context: Context) : HeartRateSource {
         running = false
         _bpm.value = null
         scope.launch {
-            runCatching { client.endExercise() }
-            runCatching { client.clearUpdateCallback(callback) }
+            gate.withLock {
+                runCatching { client.endExercise() }
+                runCatching { client.clearUpdateCallback(callback) }
+            }
         }
     }
 

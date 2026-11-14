@@ -39,12 +39,20 @@ class RunHeartRateWiringTest {
         link.runMode = RunHeartRateMode(
             exercise = object : ExerciseClientLike {
                 override val hasPermission = true
-                override suspend fun trackedStatus() = ExerciseClientLike.Tracked.NONE
+                override suspend fun trackedStatus() =
+                    if (running) ExerciseClientLike.Tracked.OWNED_RUN else ExerciseClientLike.Tracked.NONE
+                private var running = false
                 override suspend fun startRun(
                     onReadings: (List<com.dugcanlift.liftkit.HeartRatePerSet.Sample>) -> Unit,
                     onEnded: () -> Unit,
+                    onRegistrationFailed: () -> Unit,
+                ) { running = true }
+                override suspend fun adoptRun(
+                    onReadings: (List<com.dugcanlift.liftkit.HeartRatePerSet.Sample>) -> Unit,
+                    onEnded: () -> Unit,
+                    onRegistrationFailed: () -> Unit,
                 ) = Unit
-                override suspend fun end() { ended.incrementAndGet() }
+                override suspend fun end() { running = false; ended.incrementAndGet() }
             },
             send = { _, _ -> },
             scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined),

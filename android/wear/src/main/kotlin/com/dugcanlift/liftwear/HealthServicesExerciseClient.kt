@@ -44,18 +44,51 @@ class HealthServicesExerciseClient(context: Context) : ExerciseClientLike {
      * them.
      */
     @SuppressLint("RestrictedApi")
-    override suspend fun trackedStatus(): ExerciseClientLike.Tracked =
-        when (client.getCurrentExerciseInfo().exerciseTrackedStatus) {
+    override suspend fun trackedStatus(): ExerciseClientLike.Tracked {
+        val info = client.getCurrentExerciseInfo()
+        return when (info.exerciseTrackedStatus) {
             ExerciseTrackedStatus.NO_EXERCISE_IN_PROGRESS -> ExerciseClientLike.Tracked.NONE
-            ExerciseTrackedStatus.OWNED_EXERCISE_IN_PROGRESS -> ExerciseClientLike.Tracked.OWNED_IN_PROGRESS
+            // Lifting always runs as WEIGHTLIFTING, so a RUNNING exercise of ours is a run.
+            ExerciseTrackedStatus.OWNED_EXERCISE_IN_PROGRESS ->
+                if (info.exerciseType == ExerciseType.RUNNING) ExerciseClientLike.Tracked.OWNED_RUN
+                else ExerciseClientLike.Tracked.OWNED_OTHER
             // Anything else, including a status a later library adds, is "not ours to start over".
             else -> ExerciseClientLike.Tracked.OTHER_APP_IN_PROGRESS
         }
+    }
 
-    override suspend fun startRun(onReadings: (List<HeartRatePerSet.Sample>) -> Unit, onEnded: () -> Unit) {
+    override suspend fun startRun(
+        onReadings: (List<HeartRatePerSet.Sample>) -> Unit,
+        onEnded: () -> Unit,
+        onRegistrationFailed: () -> Unit,
+    ) {
+        val updates = register(onReadings, onEnded, onRegistrationFailed)
+        try {
+            client.startExercise(runConfig())
+        } catch (e: Throwable) {
+            runCatching { client.clearUpdateCallback(updates) }
+            callback = null
+            throw e
+        }
+    }
+
+    override suspend fun adoptRun(
+        onReadings: (List<HeartRatePerSet.Sample>) -> Unit,
+        onEnded: () -> Unit,
+        onRegistrationFailed: () -> Unit,
+    ) {
+        register(onReadings, onEnded, onRegistrationFailed)
+    }
+
+    private suspend fun register(
+        onReadings: (List<HeartRatePerSet.Sample>) -> Unit,
+        onEnded: () -> Unit,
+        onRegistrationFailed: () -> Unit,
+    ): ExerciseUpdateCallback {
         val updates = object : ExerciseUpdateCallback {
             override fun onRegistered() = Unit
-            override fun onRegistrationFailed(throwable: Throwable) = onEnded()
+            // Not "ended": the exercise may be running with nobody listening, which the mode ends.
+            override fun onRegistrationFailed(throwable: Throwable) = onRegistrationFailed()
             override fun onLapSummaryReceived(lapSummary: ExerciseLapSummary) = Unit
             override fun onAvailabilityChanged(dataType: DataType<*, *>, availability: Availability) = Unit
 
@@ -74,12 +107,11 @@ class HealthServicesExerciseClient(context: Context) : ExerciseClientLike {
         callback = updates
         try {
             client.setUpdateCallback(updates)
-            client.startExercise(runConfig())
         } catch (e: Throwable) {
-            runCatching { client.clearUpdateCallback(updates) }
             callback = null
             throw e
         }
+        return updates
     }
 
     override suspend fun end() {
