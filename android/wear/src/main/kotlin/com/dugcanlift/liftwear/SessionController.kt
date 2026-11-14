@@ -157,9 +157,17 @@ class SessionController(
         persist()
     }
 
+    /**
+     * Called as a lifting session is about to start its heart-rate exercise, which replaces any other
+     * of this app's. A run's heart rate (`RunHeartRateMode`) lets go here rather than ending its
+     * exercise: an end issued now could land on the one that is starting.
+     */
+    var onLiftingExerciseStarting: (() -> Unit)? = null
+
     private fun startHeartRate() {
         heartRates.reset()
         _heartRate.value = null
+        onLiftingExerciseStarting?.invoke()
         heart?.start()
     }
 

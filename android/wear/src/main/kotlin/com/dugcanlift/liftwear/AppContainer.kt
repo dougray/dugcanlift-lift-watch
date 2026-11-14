@@ -24,6 +24,20 @@ class AppContainer(context: Context) {
     /** One per process, like everything else here: it holds the workout being trained, and a second
      *  copy would be a second opinion about where the lifter is. */
     val session: SessionController = SessionController(sessionStore, phoneLink, heartRate)
+
+    /**
+     * Heart rate for a run, started and stopped by the phone. Constructing it binds nothing; only a
+     * `RUN_HR_START` does, and only while no lifting session is running (see [RunHeartRateMode]).
+     */
+    val runHeartRate: RunHeartRateMode = RunHeartRateMode(
+        exercise = HealthServicesExerciseClient(context),
+        send = phoneLink::sendRunHeartRate,
+        scope = scope,
+        liftingActive = { session.draft.value != null },
+    ).also {
+        phoneLink.runMode = it
+        session.onLiftingExerciseStarting = it::yieldToLifting
+    }
     companion object {
         @Volatile private var instance: AppContainer? = null
         fun get(context: Context) = instance ?: synchronized(this) { instance ?: AppContainer(context.applicationContext).also { instance = it } }

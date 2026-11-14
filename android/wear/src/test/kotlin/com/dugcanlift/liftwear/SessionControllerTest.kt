@@ -61,6 +61,20 @@ class SessionControllerTest {
     private fun pushPlan(vararg exercises: PlanExercise) =
         push(Plan("plan-1", 1, "Push", PlanSource.ROUTINE, today, exercises.toList()))
 
+    @Test fun `starting a lifting session tells a run's heart rate to step aside, before its own exercise starts`() {
+        val order = mutableListOf<String>()
+        val heart = object : HeartRateSource {
+            override var onReadings: ((List<HeartRatePerSet.Sample>) -> Unit)? = null
+            override fun start() { order += "lifting exercise" }
+            override fun resume() = Unit
+            override fun stop() = Unit
+        }
+        val c = SessionController(store, link, heart, { nowMillis }, { "id-${ids++}" })
+        c.onLiftingExerciseStarting = { order += "run steps aside" }
+        c.startFreeWorkout()
+        assertEquals(listOf("run steps aside", "lifting exercise"), order)
+    }
+
     // ---- a plan reaching the watch ----------------------------------------------------------------
 
     @Test fun `a pushed plan is today's plan, and yesterday's is not`() {
