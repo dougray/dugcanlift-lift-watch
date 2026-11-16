@@ -9,11 +9,11 @@ class AppContainer(context: Context) {
     val library: Deferred<WatchFoodLibrary> = scope.async { WatchFoodLibrary.bundled() }
     val log: StandaloneFoodLog = StandaloneFoodLog(PrefsLogStorage(context))
 
-    /** The phone link. Constructing it touches no radio — [PhoneLinkPeripheral.start] does, and
-     *  only the Phone screen and a session call that, so a watch that never pairs pays nothing. */
     /** One lock for every call into Health Services' exercise client: lifting's and a run's. */
     private val exerciseGate = kotlinx.coroutines.sync.Mutex()
 
+    /** The phone link. Constructing it touches no radio — [PhoneLinkPeripheral.start] does, and
+     *  only the Phone screen and a session call that, so a watch that never pairs pays nothing. */
     val linkStore: PhoneLinkStore = PhoneLinkStore(context)
     val phoneLink: PhoneLinkPeripheral = PhoneLinkPeripheral(context, linkStore)
 

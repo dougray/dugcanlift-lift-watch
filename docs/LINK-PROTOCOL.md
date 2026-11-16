@@ -288,8 +288,6 @@ build plan, item 16, "Heart rate per set"):
   session has a heart rate at all**; a mask of `0x00` is never written and is refused, so a session
   with no heart rate has one encoding, and it is version 3's.
 
-**The time is a `u32`, so a reading timed past 0xFFFFFFFF (the year 2106) cannot be sent and is dropped** rather than wrapped or clamped.
-
 **Zero is never a heart rate.** A `0` bpm byte is refused on the way in, and on the way out a heart
 rate the byte cannot carry (zero, negative, over 255) is **left off rather than refused** — the one
 field here treated that way, because a heart rate is the one thing on this wire whose loss costs
@@ -339,6 +337,8 @@ RUN_HR  142 bpm at 1_762_800_000 s
   69 12 31 80    1762800000 seconds since the epoch
 frame (version 5, FIRST|LAST, seq 0):  05 22 03 00 00 06 5d 89  00 8e 69 12 31 80
 ```
+
+**The time is a `u32`, so a reading timed past 0xFFFFFFFF (the year 2106) cannot be sent and is dropped** rather than wrapped or clamped.
 
 **Zero is never a heart rate.** A `0` bpm is refused on the way in (`MALFORMED_FRAME`, the link stays
 up) and the watch never sends one: a sensor reporting nothing is no reading. Sending is at most one
