@@ -9,6 +9,9 @@ class AppContainer(context: Context) {
     val library: Deferred<WatchFoodLibrary> = scope.async { WatchFoodLibrary.bundled() }
     val log: StandaloneFoodLog = StandaloneFoodLog(PrefsLogStorage(context))
 
+    /** One lock for every call into Health Services' exercise client: lifting's and a run's. */
+    private val exerciseGate = kotlinx.coroutines.sync.Mutex()
+
     /** The phone link. Constructing it touches no radio — [PhoneLinkPeripheral.start] does, and
      *  only the Phone screen and a session call that, so a watch that never pairs pays nothing. */
     val linkStore: PhoneLinkStore = PhoneLinkStore(context)
@@ -19,11 +22,28 @@ class AppContainer(context: Context) {
 
     /** Heart rate and a real exercise session. Constructing it binds nothing — [HeartRateRecorder.start]
      *  does — so a watch that never lifts pays nothing for it either. */
-    val heartRate: HeartRateRecorder = HeartRateRecorder(context)
+    val heartRate: HeartRateRecorder = HeartRateRecorder(context, exerciseGate)
 
     /** One per process, like everything else here: it holds the workout being trained, and a second
      *  copy would be a second opinion about where the lifter is. */
     val session: SessionController = SessionController(sessionStore, phoneLink, heartRate)
+
+    /**
+     * Heart rate for a run, started and stopped by the phone. Constructing it binds nothing; only a
+     * `RUN_HR_START` does, and only while no lifting session is running (see [RunHeartRateMode]).
+     */
+    val runHeartRate: RunHeartRateMode = RunHeartRateMode(
+        exercise = HealthServicesExerciseClient(context),
+        send = phoneLink::sendRunHeartRate,
+        scope = scope,
+        liftingActive = { session.draft.value != null },
+        clientCalls = exerciseGate,
+    ).also {
+        phoneLink.runMode = it
+        session.onLiftingExerciseStarting = it::yieldToLifting
+        // A run a killed process left behind is adopted by the next start or ended after a grace period.
+        it.checkForOrphan()
+    }
     companion object {
         @Volatile private var instance: AppContainer? = null
         fun get(context: Context) = instance ?: synchronized(this) { instance ?: AppContainer(context.applicationContext).also { instance = it } }

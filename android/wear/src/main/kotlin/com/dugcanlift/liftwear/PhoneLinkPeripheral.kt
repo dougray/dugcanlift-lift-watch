@@ -92,6 +92,13 @@ class PhoneLinkPeripheral(context: Context, private val store: PhoneLinkStore) {
      *  outbox. A send is not a receipt; this is. */
     var onSessionAcknowledged: ((String) -> Unit)? = null
 
+    /**
+     * Heart rate for a run, which the phone starts and stops with `RUN_HR_START` / `RUN_HR_STOP`
+     * (version 5). Set by the app; null leaves both messages heard and ignored. **Every way the link
+     * goes away ends it**: a run measuring for a phone that is no longer there only costs battery.
+     */
+    var runMode: RunHeartRateMode? = null
+
     /** Called when the link reaches READY, so whatever is owed can be offered again. */
     var onReady: (() -> Unit)? = null
 
@@ -141,6 +148,7 @@ class PhoneLinkPeripheral(context: Context, private val store: PhoneLinkStore) {
         notificationsEnabled = false
         outbound.clear()
         sending = false
+        runMode?.linkLost()
         _status.value = Status.Idle
     }
 
@@ -181,6 +189,20 @@ class PhoneLinkPeripheral(context: Context, private val store: PhoneLinkStore) {
         val current = session ?: return
         if (current.state != LinkState.READY) return
         runCatching { queue(current.finishSession(finished)) }
+    }
+
+    /**
+     * One heart-rate reading for a run, to the phone that asked for it. **Dropped silently** when there
+     * is no link, or the phone settled below version 5 and has never heard of the message — a run's
+     * heart rate is live or it is nothing, so none is held back to send late. A bpm that is not a
+     * heart rate (zero or less) is never put on the wire.
+     */
+    fun sendRunHeartRate(bpm: Int, atEpochSec: Long) {
+        val current = session ?: return
+        if (current.state != LinkState.READY || !current.supportsRunHeartRate) return
+        runCatching {
+            current.reportRunHeartRate(RunHeartRate(bpm, atEpochSec))?.let(::queue)
+        }
     }
 
     /** Asks the phone to push today's plan. It answers with a PLAN_PUSHED when it has one. */
@@ -266,6 +288,7 @@ class PhoneLinkPeripheral(context: Context, private val store: PhoneLinkStore) {
                     session = null
                     outbound.clear()
                     sending = false
+                    runMode?.linkLost()
                     if (wanted) start() else _status.value = Status.Idle
                 }
             }
@@ -338,7 +361,10 @@ class PhoneLinkPeripheral(context: Context, private val store: PhoneLinkStore) {
         val current = session ?: return
         when (val event = codec.accept(bytes)) {
             is CodecEvent.Incomplete -> Unit
-            is CodecEvent.Complete -> apply(current.receive(event.message))
+            is CodecEvent.Complete -> {
+                runMode?.contact()
+                apply(current.receive(event.message))
+            }
             is CodecEvent.Refused -> queue(
                 LinkMessage(MessageType.ERROR, LinkPayloads.encodeError(LinkErrorMessage(event.error, event.detail)))
             )
@@ -373,14 +399,17 @@ class PhoneLinkPeripheral(context: Context, private val store: PhoneLinkStore) {
                         onSessionAcknowledged?.invoke(event.ack.id)
                     }
                 }
+                LinkEvent.RunHeartRateStartRequested -> runMode?.start()
+                LinkEvent.RunHeartRateStopRequested -> runMode?.stop()
                 is LinkEvent.Failed -> {
                     _status.value = Status.Failed(event.error.error.name)
+                    runMode?.linkLost()
                     disconnectPeer()
                 }
                 // A phone must not be able to make the watch act on one of these: SET_LOGGED,
                 // SESSION_FINISHED and PLAN_REQUEST all travel watch to phone, and a refusal of one
                 // message is worth a log rather than a teardown.
-                is LinkEvent.Refused, is LinkEvent.SetLogged,
+                is LinkEvent.Refused, is LinkEvent.SetLogged, is LinkEvent.RunHeartRateReceived,
                 is LinkEvent.SessionFinished, LinkEvent.PlanRequested -> Unit
             }
         }

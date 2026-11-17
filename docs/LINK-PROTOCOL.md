@@ -1,6 +1,6 @@
 # LIFT Link — the Wear OS ↔ LIFT Android channel
 
-Version 3, and it still speaks versions 1 and 2. A direct Bluetooth LE channel between LIFT Android (the phone) and the LIFT Wear OS
+Version 5, and it still speaks versions 1 through 4. A direct Bluetooth LE channel between LIFT Android (the phone) and the LIFT Wear OS
 watch, so the phone can push the day's workout to the wrist and the wrist can send back what was
 actually lifted.
 
@@ -156,8 +156,11 @@ thing, so the Apple and Wear channels stay legible to each other.
 | `0x04` | `PAIR_RESULT` | watch → phone | — |
 | `0x10` | `PLAN_PUSHED` | phone → watch | `PLAN_PUSHED` |
 | `0x11` | `PLAN_REQUEST` | watch → phone | `PLAN_REQUEST` |
+| `0x12` | `RUN_HR_START` | phone → watch | — (version 5) |
+| `0x13` | `RUN_HR_STOP` | phone → watch | — (version 5) |
 | `0x20` | `SET_LOGGED` | watch → phone | `SET_LOGGED` |
 | `0x21` | `SESSION_FINISHED` | watch → phone | `SESSION_FINISHED` |
+| `0x22` | `RUN_HR` | watch → phone | — (version 5) |
 | `0x30` | `ACK` | either | `WORKOUT_SYNC_ACK` |
 | `0x3F` | `ERROR` | either | — |
 
@@ -313,6 +316,55 @@ set  4b 00009c40 0008 02 81      40 kg x 8, side 2 (right), max 129 bpm
 The window rule that produces a set's figure lives on the watch, not on the wire (`liftkit`'s
 `HeartRatePerSet`), and the phone stores what arrives. No phone reads heart rate, and none of it
 reaches a coach: SHARE-FORMAT carries no heart rate.
+
+### Version 5: heart rate during a run
+
+Version 5 added three messages and changed no payload that existed, so **every earlier fixture
+line is unchanged** and a version-4 build's bytes are exactly what they were:
+
+- **`RUN_HR_START` (`0x12`), phone → watch, empty payload.** Start measuring heart rate for a run.
+  It is also the refresh: the phone sends it again while the run goes on (at least every two
+  minutes), and **a START that arrives while the watch is already measuring starts nothing new**,
+  it only says the phone is still there.
+- **`RUN_HR_STOP` (`0x13`), phone → watch, empty payload.** Stop. Idempotent: a STOP with nothing
+  running is nothing.
+- **`RUN_HR` (`0x22`), watch → phone.** One reading: a **`u16` bpm, then a `u32` seconds since the
+  epoch, big-endian** like the 8-byte header and every other number on this link.
+
+```
+RUN_HR  142 bpm at 1_762_800_000 s
+  00 8e          bpm 142
+  69 12 31 80    1762800000 seconds since the epoch
+frame (version 5, FIRST|LAST, seq 0):  05 22 03 00 00 06 5d 89  00 8e 69 12 31 80
+```
+
+**The time is a `u32`, so a reading timed past 0xFFFFFFFF (the year 2106) cannot be sent and is dropped** rather than wrapped or clamped.
+
+**Zero is never a heart rate.** A `0` bpm is refused on the way in (`MALFORMED_FRAME`, the link stays
+up) and the watch never sends one: a sensor reporting nothing is no reading. Sending is at most one
+reading every 5 seconds; the phone also draws its own conclusion about a source gone quiet (no
+reading for 10 seconds hides the number), which is the phone's rule, not this document's.
+
+**What the watch does with them** (`RunHeartRateMode`, `PhoneLinkPeripheral`): a START starts a
+Health Services `RUNNING` exercise with GPS off and heart rate as its only data type, and the
+readings go to the phone as `RUN_HR`. It **refuses** — does nothing — when the watch is already in an
+exercise of its own (a lifting session, or another app's), when the heart-rate permission is not
+granted, or when Health Services will not start one; and it never ends an exercise it did not start.
+It ends its own on `RUN_HR_STOP`, on **link loss**, and **when nothing has been heard from the phone
+for five minutes**, so a phone that vanished never leaves an exercise draining the battery. It checks
+the exercise is a `RUNNING` one before ending anything, shares one lock with the lifting session's
+own heart-rate exercise so the two can never interleave, and **adopts** a `RUNNING` exercise a killed
+process left behind (or ends it if no `RUN_HR_START` comes within five minutes of launch). Nothing
+about the run is kept on the watch: no reading is written down.
+
+**An older peer.** A version-4 build has never heard of these opcodes and answers each with
+`UNKNOWN_TYPE`, leaving the link up, as it does any opcode it does not know. A version-5 build on a
+link that settled below 5 does the same for them (`MessageType.since`), and **does not send them**:
+`LinkSession.startRunHeartRate` / `stopRunHeartRate` / `reportRunHeartRate` return `null`, and a phone
+must not list a watch that settled below 5 as a source of run heart rate. There is nothing to strip,
+because nothing existing grew. `LinkRunHeartRateTest` (shared) pins it, and `fixtures/link-wire.txt`
+gained `runHeartRate`, `frame.runHeartRate`, `frame.runHeartRateStart`, `frame.runHeartRateStop` and
+`frame.planRequestV5`.
 
 ### What v1 carries
 
